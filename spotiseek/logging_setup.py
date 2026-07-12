@@ -51,15 +51,18 @@ def configure_logging(log_level: str | None = None, verbose: int = 0) -> None:
     root.setLevel(level)
 
     noisy_level = logging.DEBUG if level <= logging.DEBUG else logging.WARNING
-    for name in ("aioslsk", "urllib3", "asyncio"):
-        logging.getLogger(name).setLevel(noisy_level)
+    logging.getLogger("urllib3").setLevel(noisy_level)
 
     quiet_level = logging.DEBUG if level <= logging.DEBUG else logging.CRITICAL
-    # spotipy logs its own ERROR for the 403 premium gate that we already
-    # catch, translate and re-log with a clearer message.
-    # aioslsk.client dumps "unhandled exception on loop" tracebacks for the
-    # many peers that are unreachable/behind NAT — this is normal Soulseek
-    # churn, not something the user acted on. Real login/search/download
-    # failures reach the user through SpotiSeek's own error handling.
-    for name in ("spotipy", "aioslsk.client"):
+    # These libraries are extremely chatty about things the user cannot act on:
+    #   * spotipy logs its own ERROR for the 403 premium gate we already catch,
+    #     translate and re-log with a clearer message.
+    #   * aioslsk logs a WARNING/ERROR for every one of the many Soulseek peers
+    #     that are unreachable or behind NAT — normal network churn, not a
+    #     problem to report.
+    #   * asyncio dumps "Task exception was never retrieved" tracebacks for
+    #     those same abandoned peer-connection tasks.
+    # Real login/search/download failures still reach the user because
+    # SpotiSeek raises and logs them itself. Everything is restored at DEBUG.
+    for name in ("spotipy", "aioslsk", "asyncio"):
         logging.getLogger(name).setLevel(quiet_level)
