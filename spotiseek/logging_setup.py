@@ -54,9 +54,12 @@ def configure_logging(log_level: str | None = None, verbose: int = 0) -> None:
     for name in ("aioslsk", "urllib3", "asyncio"):
         logging.getLogger(name).setLevel(noisy_level)
 
+    quiet_level = logging.DEBUG if level <= logging.DEBUG else logging.CRITICAL
     # spotipy logs its own ERROR for the 403 premium gate that we already
-    # catch, translate and re-log with a clearer message. Silence it unless
-    # we are explicitly debugging, to avoid alarming duplicate output.
-    logging.getLogger("spotipy").setLevel(
-        logging.DEBUG if level <= logging.DEBUG else logging.CRITICAL
-    )
+    # catch, translate and re-log with a clearer message.
+    # aioslsk.client dumps "unhandled exception on loop" tracebacks for the
+    # many peers that are unreachable/behind NAT — this is normal Soulseek
+    # churn, not something the user acted on. Real login/search/download
+    # failures reach the user through SpotiSeek's own error handling.
+    for name in ("spotipy", "aioslsk.client"):
+        logging.getLogger(name).setLevel(quiet_level)
