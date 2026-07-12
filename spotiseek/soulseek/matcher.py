@@ -42,6 +42,12 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def is_extended_mix(name: str) -> bool:
+    """True if a filename looks like an Extended Mix (has both 'extended' and 'mix')."""
+    normalized = _normalize(name)
+    return "extended" in normalized and "mix" in normalized
+
+
 def _name_score(track: Track, candidate: Candidate) -> float:
     """Fuzzy similarity (0..1) of 'artist title' vs the candidate filename.
 
@@ -99,14 +105,22 @@ def score_candidates(
     candidates: list[Candidate],
     strictness: MatchStrictness = MatchStrictness.BALANCED,
     min_bitrate: int | None = None,
+    require_extended: bool = False,
 ) -> list[Candidate]:
-    """Return acceptable candidates ranked best-first, scores populated."""
+    """Return acceptable candidates ranked best-first, scores populated.
+
+    When ``require_extended`` is set, only files that look like an Extended Mix
+    are accepted, and the duration filter is skipped (extended mixes are longer
+    than the Spotify-reported duration of the standard track).
+    """
     name_threshold = _NAME_THRESHOLD[strictness]
-    tolerance = _DURATION_TOLERANCE_S[strictness]
+    tolerance = None if require_extended else _DURATION_TOLERANCE_S[strictness]
 
     ranked: list[Candidate] = []
     for candidate in candidates:
         if not candidate.is_audio:
+            continue
+        if require_extended and not is_extended_mix(candidate.basename):
             continue
         # Enforce a minimum bitrate for lossy files (lossless always passes).
         if (

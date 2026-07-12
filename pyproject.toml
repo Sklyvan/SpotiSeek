@@ -19,6 +19,16 @@ dependencies = [
 spotiseek = "spotiseek.cli:main"
 
 [project.optional-dependencies]
+# For pip users: `pip install -e ".[dev]"`.
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+]
+
+# For uv users: this group is installed by default, so `uv run pytest` works
+# without extra flags and isn't pruned by plain `uv run` invocations.
+[dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",

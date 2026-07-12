@@ -45,6 +45,7 @@ class Config:
     min_bitrate: int | None = None
     tag: bool = True
     dry_run: bool = False
+    extended_mix: bool = False
 
     @property
     def has_spotify_credentials(self) -> bool:
@@ -61,6 +62,7 @@ class Config:
         min_bitrate: int | None = None,
         tag: bool | None = None,
         dry_run: bool | None = None,
+        extended_mix: bool | None = None,
         soulseek_username: str | None = None,
         soulseek_password: str | None = None,
         env_file: str | os.PathLike[str] | None = None,
@@ -99,5 +101,7 @@ class Config:
             cfg.tag = tag
         if dry_run is not None:
             cfg.dry_run = dry_run
+        if extended_mix is not None:
+            cfg.extended_mix = extended_mix
 
         return cfg

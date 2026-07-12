@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import os
 import re
@@ -37,15 +38,21 @@ def _safe_filename(name: str) -> str:
     return name[:200] or "track"
 
 
-def _target_basename(track: Track) -> str:
+EXTENDED_SUFFIX = "(Extended Mix)"
+
+
+def _extended_title(track: Track) -> str:
+    return f"{track.title} {EXTENDED_SUFFIX}"
+
+
+def _target_basename(track: Track, extended: bool = False) -> str:
     artist = track.primary_artist or "Unknown Artist"
-    title = track.title or "Unknown Title"
+    title = _extended_title(track) if extended else (track.title or "Unknown Title")
     return _safe_filename(f"{artist} - {title}")
 
 
-def _existing_download(output_dir: str, track: Track) -> str | None:
-    """Return the path of an already-downloaded file for this track, if any."""
-    stem = _target_basename(track)
+def _existing_download(output_dir: str, stem: str) -> str | None:
+    """Return the path of an already-downloaded file with this stem, if any."""
     if not os.path.isdir(output_dir):
         return None
     for entry in os.listdir(output_dir):
@@ -104,10 +111,68 @@ class Downloader:
     ) -> DownloadResult:
         prefix = f"[{index}/{total}] {track.display}"
 
-        existing = _existing_download(self.output_dir, track)
-        if existing and not self.config.dry_run:
-            logger.info("%s — already present, skipping.", prefix)
-            return DownloadResult(track, DownloadStatus.DOWNLOADED, path=existing)
+        # When --extended-mix is on, try to find the Extended Mix first; if none
+        # is available, fall through to the standard version.
+        if self.config.extended_mix:
+            extended_result = await self._try_extended(client, prefix, track)
+            if extended_result is not None:
+                return extended_result
+
+        return await self._try_standard(client, prefix, track)
+
+    async def _try_extended(
+        self, client: SoulseekClient, prefix: str, track: Track
+    ) -> DownloadResult | None:
+        """Attempt the Extended Mix. Returns a result, or None to fall back."""
+        if not self.config.dry_run:
+            existing = _existing_download(
+                self.output_dir, _target_basename(track, extended=True)
+            )
+            if existing:
+                logger.info("%s — Extended Mix already present, skipping.", prefix)
+                return DownloadResult(
+                    track, DownloadStatus.DOWNLOADED, path=existing, extended=True
+                )
+
+        logger.info("%s — searching for Extended Mix...", prefix)
+        query = f"{track.search_query} extended mix"
+        candidates = await client.search(query, self.config.search_timeout)
+        ranked = score_candidates(
+            track,
+            candidates,
+            self.config.match_strictness,
+            self.config.min_bitrate,
+            require_extended=True,
+        )
+        if not ranked:
+            logger.info(
+                "%s — no Extended Mix found; downloading the standard version instead.",
+                prefix,
+            )
+            return None
+
+        best = ranked[0]
+        if self.config.dry_run:
+            logger.info(
+                "%s — would download Extended Mix: %s (%s, score %.1f, from %s)",
+                prefix, best.basename, best.extension or "?", best.score, best.username,
+            )
+            return DownloadResult(
+                track, DownloadStatus.DRY_RUN, candidate=best, extended=True
+            )
+
+        return await self._download_ranked(client, prefix, track, ranked, extended=True)
+
+    async def _try_standard(
+        self, client: SoulseekClient, prefix: str, track: Track
+    ) -> DownloadResult:
+        if not self.config.dry_run:
+            existing = _existing_download(
+                self.output_dir, _target_basename(track, extended=False)
+            )
+            if existing:
+                logger.info("%s — already present, skipping.", prefix)
+                return DownloadResult(track, DownloadStatus.DOWNLOADED, path=existing)
 
         logger.info("%s — searching...", prefix)
         candidates = await client.search(track.search_query, self.config.search_timeout)
@@ -150,6 +215,7 @@ class Downloader:
         prefix: str,
         track: Track,
         ranked: list[Candidate],
+        extended: bool = False,
     ) -> DownloadResult:
         last_error: str | None = None
         for attempt, candidate in enumerate(ranked[:MAX_DOWNLOAD_ATTEMPTS], start=1):
@@ -169,23 +235,39 @@ class Downloader:
                 logger.warning("%s — attempt %d failed: %s", prefix, attempt, exc)
                 continue
 
-            final_path = self._finalize(local_path, track, candidate)
+            final_path = self._finalize(local_path, track, candidate, extended)
             if self.config.tag:
-                tagging.tag_file(final_path, track, embed_art=True)
+                # Keep tag title consistent with the (Extended Mix) filename.
+                tag_track = (
+                    dataclasses.replace(track, title=_extended_title(track))
+                    if extended
+                    else track
+                )
+                tagging.tag_file(final_path, tag_track, embed_art=True)
             logger.info("%s — saved to %s", prefix, final_path)
             return DownloadResult(
-                track, DownloadStatus.DOWNLOADED, candidate=candidate, path=final_path
+                track,
+                DownloadStatus.DOWNLOADED,
+                candidate=candidate,
+                path=final_path,
+                extended=extended,
             )
 
         logger.warning("%s — all download attempts failed.", prefix)
         return DownloadResult(track, DownloadStatus.FAILED, error=last_error)
 
-    def _finalize(self, local_path: str, track: Track, candidate: Candidate) -> str:
-        """Move a completed download to the flat '<Artist> - <Title>.<ext>' path."""
+    def _finalize(
+        self, local_path: str, track: Track, candidate: Candidate, extended: bool = False
+    ) -> str:
+        """Move a completed download to the flat '<Artist> - <Title>.<ext>' path.
+
+        Adds the ' (Extended Mix)' suffix to the filename when ``extended``.
+        """
         ext = candidate.extension or (
             local_path.rsplit(".", 1)[-1].lower() if "." in local_path else "bin"
         )
-        dest = os.path.join(self.output_dir, f"{_target_basename(track)}.{ext}")
+        stem = _target_basename(track, extended=extended)
+        dest = os.path.join(self.output_dir, f"{stem}.{ext}")
         os.makedirs(self.output_dir, exist_ok=True)
         if os.path.abspath(local_path) != os.path.abspath(dest):
             shutil.move(local_path, dest)
@@ -216,7 +298,9 @@ class Downloader:
         if dry:
             logger.info("Dry run: %d/%d track(s) would be downloaded.", len(dry), total)
         else:
-            logger.info("Downloaded %d/%d track(s).", len(downloaded), total)
+            extended_count = sum(1 for r in downloaded if r.extended)
+            extra = f" ({extended_count} as Extended Mix)" if extended_count else ""
+            logger.info("Downloaded %d/%d track(s)%s.", len(downloaded), total, extra)
         if skipped:
             logger.info("Skipped %d track(s):", len(skipped))
             for r in skipped:

@@ -21,9 +21,11 @@ class FakeClient:
     """Stand-in for SoulseekClient. Configure via class attributes per test."""
 
     results: list = []
+    ext_results: list | None = None  # returned for "extended mix" queries when set
     fail_users: set = set()
     search_calls: int = 0
     download_calls: int = 0
+    queries: list = []
 
     def __init__(self, username, password, incoming_dir):
         self.incoming_dir = incoming_dir
@@ -37,6 +39,9 @@ class FakeClient:
 
     async def search(self, query, timeout):
         type(self).search_calls += 1
+        type(self).queries.append(query)
+        if "extended mix" in query and type(self).ext_results is not None:
+            return list(type(self).ext_results)
         return list(type(self).results)
 
     async def download(self, candidate, download_timeout):
@@ -53,9 +58,11 @@ class FakeClient:
 def patched(monkeypatch, sample_track):
     """Patch downloader dependencies; return a controller object."""
     FakeClient.results = []
+    FakeClient.ext_results = None
     FakeClient.fail_users = set()
     FakeClient.search_calls = 0
     FakeClient.download_calls = 0
+    FakeClient.queries = []
 
     tag_calls: list = []
 
@@ -169,6 +176,84 @@ async def test_skip_if_already_present(patched, sample_track, tmp_path) -> None:
     assert results[0].status is DownloadStatus.DOWNLOADED
     assert patched.FakeClient.search_calls == 0  # never searched
     assert patched.FakeClient.download_calls == 0
+
+
+async def test_extended_mix_found(patched, tmp_path) -> None:
+    patched.FakeClient.ext_results = [
+        make_candidate(
+            username="ext",
+            filename="Daft Punk - One More Time (Extended Mix).flac",
+            duration=480,  # longer than Spotify duration; must not be rejected
+        )
+    ]
+    patched.FakeClient.results = [
+        make_candidate(username="std", filename="Daft Punk - One More Time.flac")
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+
+    r = results[0]
+    assert r.status is DownloadStatus.DOWNLOADED
+    assert r.extended is True
+    assert Path(r.path).name == "Daft Punk - One More Time (Extended Mix).flac"
+    # Only the extended search was needed (no fallback search).
+    assert any("extended mix" in q for q in patched.FakeClient.queries)
+
+
+async def test_extended_mix_falls_back_to_standard(patched, tmp_path) -> None:
+    patched.FakeClient.ext_results = []  # no extended mix available
+    patched.FakeClient.results = [
+        make_candidate(username="std", filename="Daft Punk - One More Time.flac")
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+
+    r = results[0]
+    assert r.status is DownloadStatus.DOWNLOADED
+    assert r.extended is False
+    assert Path(r.path).name == "Daft Punk - One More Time.flac"
+    # Both an extended search and a standard search happened.
+    assert any("extended mix" in q for q in patched.FakeClient.queries)
+    assert any("extended mix" not in q for q in patched.FakeClient.queries)
+
+
+async def test_extended_mix_tags_include_suffix(patched, tmp_path) -> None:
+    patched.FakeClient.ext_results = [
+        make_candidate(
+            username="ext",
+            filename="Daft Punk - One More Time (Extended Mix).flac",
+            duration=480,
+        )
+    ]
+    await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    # tag_file is called with a track whose title carries the suffix.
+    assert patched.tag_calls, "tagging was not attempted"
+    tagged_track = patched.tag_calls[0][1]
+    assert tagged_track.title == "One More Time (Extended Mix)"
+
+
+async def test_extended_mix_dry_run(patched, tmp_path) -> None:
+    patched.FakeClient.ext_results = [
+        make_candidate(
+            username="ext",
+            filename="Daft Punk - One More Time (Extended Mix).flac",
+            duration=480,
+        )
+    ]
+    results = await dl.run_download(
+        _config(tmp_path, extended_mix=True, dry_run=True), TRACK_URL
+    )
+    assert results[0].status is DownloadStatus.DRY_RUN
+    assert results[0].extended is True
+    assert patched.FakeClient.download_calls == 0
+
+
+async def test_extended_mix_skip_if_present(patched, tmp_path) -> None:
+    out = tmp_path / "out"
+    out.mkdir(parents=True)
+    (out / "Daft Punk - One More Time (Extended Mix).flac").write_bytes(b"here")
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    assert results[0].extended is True
+    assert patched.FakeClient.search_calls == 0
 
 
 async def test_parallel_processes_all_tracks(patched, tmp_path) -> None:

@@ -55,6 +55,11 @@ def main() -> None:
 )
 @click.option("--no-tag", is_flag=True, help="Do not write tags or embed cover art.")
 @click.option(
+    "--extended-mix", is_flag=True,
+    help="Prefer the '(Extended Mix)' version; fall back to the standard one if "
+    "not found. Downloaded extended mixes are named '... (Extended Mix)'.",
+)
+@click.option(
     "--dry-run", is_flag=True,
     help="Search and match only; report picks without downloading.",
 )
@@ -70,6 +75,7 @@ def download(
     search_timeout: float,
     min_bitrate: int | None,
     no_tag: bool,
+    extended_mix: bool,
     dry_run: bool,
     slsk_user: str | None,
     slsk_pass: str | None,
@@ -86,6 +92,7 @@ def download(
         min_bitrate=min_bitrate,
         tag=not no_tag,
         dry_run=dry_run,
+        extended_mix=extended_mix,
         soulseek_username=slsk_user,
         soulseek_password=slsk_pass,
     )

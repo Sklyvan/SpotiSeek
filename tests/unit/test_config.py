@@ -37,6 +37,7 @@ def test_defaults(monkeypatch, tmp_path) -> None:
     assert cfg.parallel == 1
     assert cfg.match_strictness is MatchStrictness.BALANCED
     assert cfg.tag is True
+    assert cfg.extended_mix is False
     assert cfg.has_spotify_credentials is False
 
 
@@ -61,6 +62,7 @@ def test_cli_overrides_env(monkeypatch, tmp_path) -> None:
         match_strictness="strict",
         min_bitrate=256,
         tag=False,
+        extended_mix=True,
         output_dir="/tmp/out",
     )
     assert cfg.soulseek_username == "cliuser"
@@ -68,6 +70,7 @@ def test_cli_overrides_env(monkeypatch, tmp_path) -> None:
     assert cfg.match_strictness is MatchStrictness.STRICT
     assert cfg.min_bitrate == 256
     assert cfg.tag is False
+    assert cfg.extended_mix is True
     assert str(cfg.output_dir) == "/tmp/out"
 
 

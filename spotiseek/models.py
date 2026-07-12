@@ -130,6 +130,7 @@ class DownloadResult:
     candidate: Candidate | None = None
     path: str | None = None
     error: str | None = None
+    extended: bool = False  # True when an Extended Mix was chosen/downloaded
 
     @property
     def ok(self) -> bool:
