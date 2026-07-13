@@ -56,8 +56,9 @@ def main() -> None:
 @click.option("--no-tag", is_flag=True, help="Do not write tags or embed cover art.")
 @click.option(
     "--extended-mix", is_flag=True,
-    help="Prefer the '(Extended Mix)' version; fall back to the standard one if "
-    "not found. Downloaded extended mixes are named '... (Extended Mix)'.",
+    help="Prefer the official '(Extended Mix)' version (remixes/edits are "
+    "ignored); fall back to the standard one if none is found. Downloaded "
+    "extended mixes are named '... (Extended Mix)'.",
 )
 @click.option(
     "--dry-run", is_flag=True,

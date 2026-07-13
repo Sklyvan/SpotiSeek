@@ -24,8 +24,9 @@ It's a command-line tool. 💻 A GUI may come later.
 - 🥇 Searches Soulseek and **auto-picks the best result**, preferring lossless
   (FLAC/WAV) → high-bitrate MP3 → anything playable, while checking the artist,
   title and (when the peer reports it) the track duration.
-- 🎚️ Optional **`--extended-mix`** mode: prefer the *(Extended Mix)* version of a
-  track, and fall back to the standard one if no extended mix is available.
+- 🎚️ Optional **`--extended-mix`** mode: prefer the *official (Extended Mix)* of a
+  track (extended **remixes/edits are ignored**), and fall back to the standard
+  one if no official extended mix is available.
 - ⚡ Downloads **sequentially by default**, or **in parallel** with `--parallel N`.
 - 🏷️ Writes tags and embeds cover art into each downloaded file.
 - 🤷 If a track can't be found or downloaded, it **logs a warning and moves on** —
@@ -112,7 +113,7 @@ spotiseek info "<url>"
 |---|---|---|
 | `-o, --output DIR` | Where to save files | `downloads` |
 | `-p, --parallel N` | Concurrent downloads (`1` = sequential) | `1` |
-| `--extended-mix` | Prefer the *(Extended Mix)* version; fall back to standard | off |
+| `--extended-mix` | Prefer the official *(Extended Mix)*; fall back to standard | off |
 | `--match {strict\|balanced\|lenient}` | How strictly to match results | `balanced` |
 | `--search-timeout SEC` | How long to gather Soulseek results per track | `15` |
 | `--min-bitrate N` | Reject lossy files below this bitrate (kbps) | — |

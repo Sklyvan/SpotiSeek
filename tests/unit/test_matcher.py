@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from spotiseek.models import MatchStrictness
-from spotiseek.soulseek.matcher import is_extended_mix, score_candidates
+from spotiseek.models import MatchStrictness, Track
+from spotiseek.soulseek.matcher import (
+    is_extended_mix,
+    is_official_extended_mix,
+    score_candidates,
+)
 
 from ..conftest import make_candidate
 
@@ -119,6 +123,63 @@ def test_require_extended_empty_when_no_extended(sample_track) -> None:
     ]
     assert score_candidates(sample_track, cands, MatchStrictness.BALANCED,
                             require_extended=True) == []
+
+
+def test_is_official_extended_mix(sample_track) -> None:
+    official = make_candidate(filename="Daft Punk - One More Time (Extended Mix).flac")
+    flip = make_candidate(
+        filename="Daft Punk - One More Time (RetroVision Flip) [EXTENDED MIX].wav",
+        extension="wav")
+    remix = make_candidate(
+        filename="Daft Punk - One More Time (Someone Remix) [Extended Mix].flac")
+    assert is_official_extended_mix(sample_track, official) is True
+    assert is_official_extended_mix(sample_track, flip) is False
+    assert is_official_extended_mix(sample_track, remix) is False
+
+
+def test_require_extended_rejects_remixes(sample_track) -> None:
+    cands = [
+        make_candidate(username="flip",
+                       filename="Daft Punk - One More Time (RetroVision Flip) [EXTENDED MIX].wav",
+                       extension="wav", duration=300),
+        make_candidate(username="remix",
+                       filename="Daft Punk - One More Time (Skrillex Remix) [Extended Mix].flac",
+                       duration=360),
+        make_candidate(username="official",
+                       filename="Daft Punk - One More Time (Extended Mix).flac",
+                       duration=480),
+    ]
+    ranked = score_candidates(sample_track, cands, MatchStrictness.BALANCED,
+                              require_extended=True)
+    assert [c.username for c in ranked] == ["official"]
+
+
+def test_require_extended_falls_back_when_only_remixes(sample_track) -> None:
+    cands = [
+        make_candidate(username="flip",
+                       filename="Daft Punk - One More Time (DJ X Flip) [Extended Mix].flac",
+                       duration=300),
+        make_candidate(username="bootleg",
+                       filename="Daft Punk - One More Time (Bootleg) (Extended Mix).mp3",
+                       extension="mp3", bitrate=320, duration=330),
+    ]
+    # No official extended mix -> nothing survives -> downloader falls back.
+    assert score_candidates(sample_track, cands, MatchStrictness.BALANCED,
+                            require_extended=True) == []
+
+
+def test_require_extended_prefers_cleaner_official(sample_track) -> None:
+    cands = [
+        make_candidate(username="verbose",
+                       filename="Daft Punk - Discovery Deluxe Reissue - One More Time (Extended Mix).flac",
+                       duration=480),
+        make_candidate(username="clean",
+                       filename="Daft Punk - One More Time (Extended Mix).flac",
+                       duration=480),
+    ]
+    ranked = score_candidates(sample_track, cands, MatchStrictness.BALANCED,
+                              require_extended=True)
+    assert ranked[0].username == "clean"
 
 
 def test_free_slot_preferred_over_queued(sample_track) -> None:

@@ -187,10 +187,20 @@ runs an **extended-first** strategy for each track (see §6):
    not qualify). The duration filter is **disabled** for this pass, because an
    extended mix is legitimately longer than the standard track's Spotify
    duration and would otherwise be rejected.
-3. If an extended mix is found, it is downloaded, the filename gets a
+3. 🎯 It favours the **official** extended mix. `is_official_extended_mix(...)`
+   rejects any extended-labelled file that also carries an alternate-version
+   marker (`_ALT_VERSION_KEYWORDS`: remix, flip, bootleg, VIP, mashup, edit,
+   dub, instrumental, live, cover, …) appearing *outside* the artist/title — so
+   `"Levels (RetroVision Flip) [Extended Mix]"` and `"… (Skrillex Remix) [Extended
+   Mix]"` are discarded. Among the survivors, a light **specificity** tiebreak
+   (`0.85 + 0.15/(1+extras)`) prefers the cleanest name, where "extras" are
+   descriptive tokens that are neither the artist/title nor common noise
+   (formats, track numbers, "remastered", "feat", …).
+4. If an official extended mix is found, it is downloaded, the filename gets a
    ` (Extended Mix)` suffix, and the written **title tag** is suffixed to match.
-4. If none is found, SpotiSeek logs *"no Extended Mix found; downloading the
-   standard version instead."* and continues with the normal flow.
+5. If none is found (nothing extended, or only remixes/edits), SpotiSeek logs
+   *"no Extended Mix found; downloading the standard version instead."* and
+   continues with the normal flow.
 
 ---
 
@@ -295,8 +305,10 @@ uv run pytest --run-integration          # also exercises the live network
   many peers don't report duration. `balanced` aims for a good precision/recall
   trade-off; use `strict` to avoid wrong versions (at the cost of more misses)
   or `lenient` to maximize hits (at the risk of remixes/live versions).
-  Likewise, `--extended-mix` accepts any file labelled "extended … mix", which
-  can include extended remixes, not only the canonical extended mix.
+  `--extended-mix` targets the *official* extended mix and rejects extended
+  remixes/edits; keyword-based, so a canonical mix that a peer mislabels with a
+  remix word could be skipped, and if no official extended mix is shared it
+  falls back to the standard track.
 - 🔄 **No transcoding.** SpotiSeek downloads whatever format the chosen peer
   offers; it never converts between formats.
 
