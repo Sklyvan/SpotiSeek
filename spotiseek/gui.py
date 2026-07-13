@@ -162,8 +162,12 @@ class MainWindow(QMainWindow):
         form.addRow("Parallel Downloads:", self.parallel)
 
         self.match = QComboBox()
-        self.match.addItems([m.value for m in MatchStrictness])
-        self.match.setCurrentText(MatchStrictness.BALANCED.value)
+        for strictness in MatchStrictness:
+            # Show a capitalized label; keep the enum value as item data.
+            self.match.addItem(strictness.value.capitalize(), strictness.value)
+        self.match.setCurrentIndex(
+            self.match.findData(MatchStrictness.BALANCED.value)
+        )
         form.addRow("Match Strictness:", self.match)
 
         self.search_timeout = QDoubleSpinBox()
@@ -176,9 +180,12 @@ class MainWindow(QMainWindow):
         self.min_bitrate = QSpinBox()
         self.min_bitrate.setRange(0, 1411)
         self.min_bitrate.setSingleStep(32)
-        self.min_bitrate.setSpecialValueText("No minimum")
+        self.min_bitrate.setSpecialValueText("No Minimum")
         self.min_bitrate.setSuffix(" kbps")
         self.min_bitrate.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # The default size hint is computed for the numeric range, which is
+        # narrower than the "No Minimum" special text — give it room.
+        self.min_bitrate.setMinimumWidth(160)
         form.addRow("Min Bitrate (Lossy):", self.min_bitrate)
 
         self.extended_check = QCheckBox("Prefer Official Extended Mix")
@@ -272,7 +279,7 @@ class MainWindow(QMainWindow):
             or DEFAULT_SOULSEEK_PASSWORD,
             output_dir=Path(self.output_edit.text().strip() or "downloads"),
             parallel=self.parallel.value(),
-            match_strictness=MatchStrictness(self.match.currentText()),
+            match_strictness=MatchStrictness(self.match.currentData()),
             search_timeout=self.search_timeout.value(),
             min_bitrate=self.min_bitrate.value() or None,
             tag=self.tag_check.isChecked(),

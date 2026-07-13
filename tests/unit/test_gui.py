@@ -26,9 +26,14 @@ def qapp():
 def test_window_builds(qapp) -> None:
     window = MainWindow()
     assert "SpotiSeek" in window.windowTitle()
+    # Strictness options are shown capitalized but carry the enum value as data.
     assert [
         window.match.itemText(i) for i in range(window.match.count())
+    ] == [m.value.capitalize() for m in MatchStrictness]
+    assert [
+        window.match.itemData(i) for i in range(window.match.count())
     ] == [m.value for m in MatchStrictness]
+    assert window.match.currentData() == MatchStrictness.BALANCED.value
     assert window.tag_check.isChecked()
     assert window.parallel.value() == 1
     # Soulseek username defaults to the project account.
@@ -38,7 +43,7 @@ def test_window_builds(qapp) -> None:
 def test_current_config_reflects_fields(qapp) -> None:
     window = MainWindow()
     window.parallel.setValue(4)
-    window.match.setCurrentText("strict")
+    window.match.setCurrentText("Strict")  # capitalized label
     window.extended_check.setChecked(True)
     window.tag_check.setChecked(False)
     window.dryrun_check.setChecked(True)
