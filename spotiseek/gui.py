@@ -16,6 +16,7 @@ import logging
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QObject, QThread, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -53,6 +54,14 @@ from .spotify.parser import parse_spotify_url
 from .spotify.provider import fetch_tracks
 
 logger = logging.getLogger("spotiseek")
+
+# Application logo/icon. Drop a PNG here and it is used automatically as the
+# window/dock/taskbar icon; if it's absent the GUI still works without one.
+ICON_PATH = Path(__file__).parent / "assets" / "icon.png"
+
+
+def _app_icon() -> QIcon | None:
+    return QIcon(str(ICON_PATH)) if ICON_PATH.exists() else None
 
 
 # --------------------------------------------------------------------------- #
@@ -119,6 +128,9 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"SpotiSeek {__version__}")
+        icon = _app_icon()
+        if icon is not None:
+            self.setWindowIcon(icon)
         self._worker: _Worker | None = None
         self._build_ui()
         self._setup_logging()
@@ -392,6 +404,9 @@ def run_gui() -> None:
 
     app = QApplication.instance() or QApplication(sys.argv)
     app.setApplicationName("SpotiSeek")
+    icon = _app_icon()
+    if icon is not None:
+        app.setWindowIcon(icon)
     window = MainWindow()
     window.resize(780, 680)
     window.show()

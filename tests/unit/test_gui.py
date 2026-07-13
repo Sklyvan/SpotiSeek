@@ -71,3 +71,16 @@ def test_worker_construction(qapp) -> None:
     window = MainWindow()
     worker = _Worker(window._current_config(), "spotify:track:abc", "info")
     assert not worker.isRunning()
+
+
+def test_app_icon_optional(qapp) -> None:
+    # _app_icon returns None when no icon file is present, and the window still
+    # builds either way.
+    from spotiseek.gui import ICON_PATH, _app_icon
+
+    icon = _app_icon()
+    if ICON_PATH.exists():
+        assert icon is not None and not icon.isNull()
+    else:
+        assert icon is None
+    MainWindow()  # must not raise regardless
