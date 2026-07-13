@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import os
+
 from spotiseek.config import (
     DEFAULT_SOULSEEK_PASSWORD,
     DEFAULT_SOULSEEK_USERNAME,
     Config,
+    save_env,
 )
 from spotiseek.models import MatchStrictness
 
@@ -78,3 +81,36 @@ def test_parallel_floor(monkeypatch, tmp_path) -> None:
     _clear_env(monkeypatch)
     cfg = Config.load(env_file=_missing_env_file(tmp_path), parallel=0)
     assert cfg.parallel == 1
+
+
+def test_save_env_writes_and_preserves(tmp_path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("EXISTING_KEY=keepme\n")
+    try:
+        path = save_env(
+            {"SPOTIFY_CLIENT_ID": "cid", "SOULSEEK_USERNAME": "user"},
+            env_file=env_file,
+        )
+        content = env_file.read_text()
+        assert path == env_file
+        assert "EXISTING_KEY" in content  # unrelated keys are preserved
+        assert "cid" in content and "SPOTIFY_CLIENT_ID" in content
+        # Loading from that file reflects the saved values.
+        cfg = Config.load(env_file=str(env_file))
+        assert cfg.spotify_client_id == "cid"
+        # os.environ is updated so a same-process reload sees it.
+        assert os.environ["SPOTIFY_CLIENT_ID"] == "cid"
+    finally:
+        for key in ("SPOTIFY_CLIENT_ID", "SOULSEEK_USERNAME"):
+            os.environ.pop(key, None)
+
+
+def test_save_env_creates_missing_file(tmp_path) -> None:
+    env_file = tmp_path / "sub" / ".env"
+    env_file.parent.mkdir()
+    try:
+        save_env({"SOULSEEK_PASSWORD": "secret"}, env_file=env_file)
+        assert env_file.exists()
+        assert "SOULSEEK_PASSWORD" in env_file.read_text()
+    finally:
+        os.environ.pop("SOULSEEK_PASSWORD", None)

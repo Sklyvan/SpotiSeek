@@ -7,7 +7,8 @@ downloads the best match it can find. ⬇️ Downloaded files are renamed and
 tagged (title, artist, album, track number, year) with the album cover art
 embedded. 🏷️🖼️
 
-It's a command-line tool. 💻 A GUI may come later.
+It ships with both a **command-line tool** 💻 and a **desktop GUI** 🖥️ (so you
+never have to touch a terminal or edit `.env` by hand).
 
 > ⚠️ **Legal note.** SpotiSeek downloads files from other users on the Soulseek
 > network. Only download material you have the right to. You are responsible for
@@ -46,14 +47,16 @@ It's a command-line tool. 💻 A GUI may come later.
 Using [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
-uv sync                 # install runtime deps
+uv sync                    # CLI only
+uv sync --extra gui        # CLI + desktop GUI (PySide6)
 uv run spotiseek --help
 ```
 
 Or with pip:
 
 ```bash
-pip install -e .
+pip install -e .           # CLI only
+pip install -e ".[gui]"    # CLI + desktop GUI
 spotiseek --help
 ```
 
@@ -131,6 +134,28 @@ the output folder, that track is skipped. ⏭️
 
 `download` exits non-zero if there were tracks to fetch but **none** succeeded,
 which makes it easy to use in scripts.
+
+---
+
+## 🖥️ Desktop GUI
+
+Prefer not to use the terminal? Launch the GUI (after installing the `gui` extra):
+
+```bash
+uv run spotiseek-gui       # or just: spotiseek-gui
+```
+
+The window lets you:
+
+- 🔗 Paste a Spotify URL and hit **Download** (or **Info** to just list the tracks).
+- 🎛️ Set all the options — output folder (with a Browse button), parallel
+  downloads, match strictness, Extended Mix, tagging, min bitrate, dry run.
+- 🔑 Enter your **Spotify** and **Soulseek** credentials and **Save settings to
+  .env** — no manual file editing. They're loaded automatically next time.
+- 📈 Watch a **live log** and a **progress bar** as tracks download; the UI stays
+  responsive because downloads run on a background thread.
+
+Everything runs through the exact same engine as the CLI.
 
 ---
 

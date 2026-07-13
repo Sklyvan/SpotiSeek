@@ -63,12 +63,34 @@ def _existing_download(output_dir: str, stem: str) -> str | None:
 
 
 class Downloader:
-    """Runs the download pipeline for a single Spotify URL."""
+    """Runs the download pipeline for a single Spotify URL.
 
-    def __init__(self, config: Config) -> None:
+    Optional callbacks let a front-end (e.g. the GUI) report progress:
+      * ``on_start(total)`` is called once the track list is resolved.
+      * ``on_track_done(result)`` is called as each track finishes.
+    Both are invoked from the download's event loop; a GUI must marshal them
+    back onto its own thread. Exceptions raised by a callback are swallowed.
+    """
+
+    def __init__(
+        self,
+        config: Config,
+        on_start=None,
+        on_track_done=None,
+    ) -> None:
         self.config = config
         self.output_dir = os.fspath(config.output_dir)
         self.incoming_dir = os.path.join(self.output_dir, _INCOMING_DIRNAME)
+        self._on_start = on_start
+        self._on_track_done = on_track_done
+
+    def _notify(self, callback, *args) -> None:
+        if callback is None:
+            return
+        try:
+            callback(*args)
+        except Exception as exc:  # a front-end callback must never break a run
+            logger.debug("Progress callback raised (ignored): %s", exc)
 
     async def run(self, url: str) -> list[DownloadResult]:
         kind, spotify_id = parse_spotify_url(url)
@@ -82,6 +104,7 @@ class Downloader:
         )
 
         os.makedirs(self.output_dir, exist_ok=True)
+        self._notify(self._on_start, len(tracks))
 
         async with SoulseekClient(
             self.config.soulseek_username,
@@ -93,7 +116,7 @@ class Downloader:
             async def worker(index: int, track: Track) -> DownloadResult:
                 async with semaphore:
                     try:
-                        return await self._process_track(
+                        result = await self._process_track(
                             client, index, len(tracks), track
                         )
                     except Exception as exc:
@@ -102,9 +125,11 @@ class Downloader:
                             "[%d/%d] %s — unexpected error: %s",
                             index, len(tracks), track.display, exc,
                         )
-                        return DownloadResult(
+                        result = DownloadResult(
                             track, DownloadStatus.FAILED, error=str(exc)
                         )
+                    self._notify(self._on_track_done, result)
+                    return result
 
             results = await asyncio.gather(
                 *(worker(i, t) for i, t in enumerate(tracks, start=1))
@@ -349,6 +374,12 @@ class Downloader:
                 logger.info("  - %s (%s)", r.track.display, r.status.value)
 
 
-async def run_download(config: Config, url: str) -> list[DownloadResult]:
-    """Async entry point: process a Spotify URL end to end."""
-    return await Downloader(config).run(url)
+async def run_download(
+    config: Config, url: str, on_start=None, on_track_done=None
+) -> list[DownloadResult]:
+    """Async entry point: process a Spotify URL end to end.
+
+    ``on_start(total)`` and ``on_track_done(result)`` are optional progress
+    callbacks (see :class:`Downloader`).
+    """
+    return await Downloader(config, on_start, on_track_done).run(url)

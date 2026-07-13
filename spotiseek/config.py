@@ -10,11 +10,12 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
 from .models import MatchStrictness
 
 DEFAULT_OUTPUT_DIR = "downloads"
+DEFAULT_ENV_FILE = ".env"
 DEFAULT_SEARCH_TIMEOUT = 15.0
 DEFAULT_SOULSEEK_USERNAME = "Sklyvan"
 DEFAULT_SOULSEEK_PASSWORD = "12345"
@@ -23,6 +24,26 @@ DEFAULT_SOULSEEK_PASSWORD = "12345"
 def _env(name: str) -> str | None:
     value = os.environ.get(name)
     return value.strip() if value else None
+
+
+def save_env(
+    values: dict[str, str],
+    env_file: str | os.PathLike[str] = DEFAULT_ENV_FILE,
+) -> Path:
+    """Persist the given key/value pairs to a ``.env`` file.
+
+    Existing keys are updated in place and other keys are preserved (via
+    python-dotenv's ``set_key``); the file is created if it does not exist.
+    Also updates ``os.environ`` so a subsequent :meth:`Config.load` in the same
+    process sees the new values. Returns the path written.
+    """
+    path = Path(env_file)
+    path.touch(exist_ok=True)
+    for key, value in values.items():
+        value = value or ""
+        set_key(str(path), key, value)
+        os.environ[key] = value
+    return path
 
 
 @dataclass(slots=True)

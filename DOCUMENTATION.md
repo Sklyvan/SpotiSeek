@@ -44,6 +44,7 @@ spotiseek/
     matcher.py      # pure scoring & ranking of candidates
   tagging.py        # mutagen tag writing + cover-art embedding
   downloader.py     # orchestrator tying it all together
+  gui.py            # optional PySide6 desktop front-end
 ```
 
 ### 🧩 Key dependencies
@@ -264,9 +265,46 @@ env or `--slsk-user/--slsk-pass`.
 🔊 Logging is leveled (`--log-level`, or `-v` for DEBUG). Third-party noise is
 suppressed unless debugging (see §4.1).
 
+`save_env(values, env_file)` (used by the GUI) persists credentials/settings to
+`.env` via python-dotenv's `set_key` — existing keys are preserved, the file is
+created if missing, and `os.environ` is updated so a same-process reload sees
+the change.
+
 ---
 
-## 8. 🧪 Testing
+## 8. 🖥️ Desktop GUI (`gui.py`)
+
+An optional PySide6 front-end over the exact same core pipeline — chosen over
+PyQt5 for its LGPL licence and Qt6 base. It is an **opt-in extra** (`gui`) so
+CLI-only installs stay lightweight; the `spotiseek-gui` entry point
+(`spotiseek.cli:gui`) imports PySide6 lazily and prints an install hint if it's
+missing.
+
+Architecture:
+
+- 🧵 **Threading.** The download runs on a background `QThread` (`_Worker`) that
+  calls `asyncio.run(run_download(...))`, keeping the UI responsive. Results and
+  progress cross back to the UI thread through Qt **signals** (queued, hence
+  thread-safe).
+- 📊 **Progress.** `_Worker` passes `on_start`/`on_track_done` callbacks into
+  `run_download`; these emit signals that drive the progress bar. The callbacks
+  fire from the download's event loop and are wrapped so an exception can never
+  break a run.
+- 📜 **Logging.** A `_QtLogHandler` attached to the root logger forwards every
+  record through a `_LogBridge` signal into the on-screen log view, so the GUI
+  shows the same messages as the CLI (third-party noise already suppressed by
+  `configure_logging`).
+- 💾 **Settings.** Credentials/options are read on startup via `Config.load()`
+  and written back with `save_env()` — users never edit `.env` by hand. A run
+  builds its `Config` straight from the widget values, so unsaved tweaks still
+  apply.
+
+The GUI adds no logic of its own: metadata resolution, matching, downloading and
+tagging are all the same functions the CLI uses.
+
+---
+
+## 9. 🧪 Testing
 
 ```bash
 uv run pytest tests/unit                 # offline, deterministic
@@ -274,22 +312,27 @@ uv run pytest --run-integration          # also exercises the live network
 ```
 
 - ✅ **Unit tests** (no network): URL parsing, embed parsing from saved HTML
-  fixtures, the matcher (ranking, rejection, min-bitrate, strictness, and the
-  `require_extended` / `is_extended_mix` logic), tagging round-trips on real
-  generated audio fixtures (mp3/flac/wav/m4a), config precedence, and the full
-  orchestrator with a mocked Soulseek client (success, no-results, no-match,
-  peer fallback, all-fail, dry-run, `--no-tag`, skip-if-present, parallel, and
-  the extended-mix found / fallback / dry-run / skip / tag-suffix paths).
+  fixtures, the matcher (ranking, rejection, min-bitrate, strictness,
+  `require_extended` / `is_official_extended_mix` and the cheap
+  `has_ready_lossless_match` early-stop), tagging round-trips on real generated
+  audio fixtures (mp3/flac/wav/m4a/aiff) plus the generic fallback, search-query
+  cleanup, config precedence and `save_env`, the full orchestrator with a mocked
+  Soulseek client (success, no-results, no-match, peer fallback, all-fail,
+  dry-run, `--no-tag`, skip-if-present, parallel, extended-mix found/fallback/
+  dry-run/skip/tag-suffix, progress callbacks, run resilience), the client's
+  search collection/early-exit, and an **offscreen GUI smoke test** (skipped if
+  PySide6 is absent).
 - 🌍 **Integration tests** (opt-in via `--run-integration`): live Spotify embed
   metadata, live Soulseek login + search, and a real end-to-end download that
   verifies a genuine audio file lands on disk. Peer-dependent outcomes are
   handled — the tests accept a graceful "not available" as valid.
 
 🔧 Audio fixtures are generated with `ffmpeg` (a 1-second sine tone per format).
+GUI tests run under `QT_QPA_PLATFORM=offscreen`, so no display is required.
 
 ---
 
-## 9. ⚠️ Known limitations
+## 10. ⚠️ Known limitations
 
 - 🔒 **Spotify API premium gate.** As noted in §3.3, the official Web API may
   return 403 until the app's owner account is Premium (propagation can take
@@ -315,9 +358,9 @@ uv run pytest --run-integration          # also exercises the live network
 
 ---
 
-## 10. 🔮 Future work
+## 11. 🔮 Future work
 
-- 🖥️ Optional GUI (the current CLI/core split keeps the pipeline reusable).
 - 🎚️ A `--format`/quality-policy flag to make the format preference configurable.
 - 📝 Optional per-track "missing report" output file.
 - 🧱 Support for `slskd` as an alternative Soulseek backend.
+- ⏹️ A cancel button + queued-download view in the GUI.

@@ -134,5 +134,25 @@ def info(url: str, log_level: str | None, verbose: int) -> None:
         click.echo(f"  {i:>3}. {t.display}  ({dur}){album}")
 
 
+def gui() -> None:
+    """Console entry point for the desktop GUI (``spotiseek-gui``).
+
+    PySide6 is imported lazily so that CLI-only installs don't need it; if it is
+    missing we print how to install the optional ``gui`` extra.
+    """
+    try:
+        from .gui import run_gui
+    except ImportError:
+        click.echo(
+            "The SpotiSeek GUI requires PySide6, which is not installed.\n"
+            "Install it with:\n"
+            "  uv sync --extra gui\n"
+            "  # or: pip install 'spotiseek[gui]'",
+            err=True,
+        )
+        raise SystemExit(1)
+    run_gui()
+
+
 if __name__ == "__main__":  # pragma: no cover
     main()

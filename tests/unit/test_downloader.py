@@ -256,6 +256,27 @@ async def test_extended_mix_skip_if_present(patched, tmp_path) -> None:
     assert patched.FakeClient.search_calls == 0
 
 
+async def test_progress_callbacks_fire(patched, tmp_path) -> None:
+    patched.state["tracks"] = [
+        Track(title=f"Song {i}", artists=["Artist"], duration_ms=200000)
+        for i in range(3)
+    ]
+    patched.FakeClient.results = [
+        make_candidate(username="u", filename="Artist - Song.flac", duration=200)
+    ]
+    starts: list[int] = []
+    dones: list = []
+    results = await dl.run_download(
+        _config(tmp_path), TRACK_URL,
+        on_start=starts.append,
+        on_track_done=dones.append,
+    )
+    assert starts == [3]                 # on_start called once with the total
+    assert len(dones) == 3               # on_track_done called per track
+    assert len(results) == 3
+    assert all(hasattr(r, "status") for r in dones)
+
+
 async def test_unexpected_error_does_not_abort_run(patched, monkeypatch, tmp_path) -> None:
     # Two tracks; searching raises for all, but the run must still complete with
     # a FAILED result per track rather than propagating and aborting everything.
