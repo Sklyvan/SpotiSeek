@@ -1,13 +1,17 @@
 """Write audio tags and embed cover art using mutagen.
 
 Tagging is best-effort: a failure here never fails the download, it is logged
-as a warning. Supports MP3 (ID3), FLAC/OGG/OPUS (Vorbis comments), MP4/M4A and
-WAV (ID3 chunk). Cover art is fetched from the track's Spotify cover URL.
+as a warning. MP3 (ID3), FLAC/OGG/OPUS (Vorbis comments), MP4/M4A and WAV/AIFF
+(ID3) get full tags plus embedded cover art. **Any other format** mutagen can
+open still receives the Spotify text metadata (title/artist/album/track/date)
+via a generic fallback, so downloads always end up tagged. Cover art is fetched
+from the track's Spotify cover URL and cached per URL for the run.
 """
 
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 
 import requests
 
@@ -16,8 +20,12 @@ from .models import Track
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=64)
 def _download_cover(url: str, timeout: float = 20.0) -> tuple[bytes, str] | None:
-    """Download cover art, returning (bytes, mime) or None on failure."""
+    """Download cover art, returning (bytes, mime) or None on failure.
+
+    Cached by URL so an album/playlist that shares one cover downloads it once.
+    """
     try:
         resp = requests.get(url, timeout=timeout)
         resp.raise_for_status()
@@ -161,6 +169,34 @@ def _tag_aiff(path: str, track: Track, cover: tuple[bytes, str] | None) -> None:
     _tag_id3_container(AIFF(path), track, cover)
 
 
+def _tag_generic(path: str, track: Track, cover: tuple[bytes, str] | None) -> None:
+    """Fallback for any other format mutagen can open.
+
+    Writes the Spotify text metadata using the standardized "easy" keys so that
+    files with an unusual extension (or no tags at all) still get title/artist/
+    album/track/date. Cover art is not embedded here (container support varies);
+    the common art-capable formats are handled by the dedicated taggers above.
+    """
+    import mutagen
+
+    audio = mutagen.File(path, easy=True)
+    if audio is None:
+        raise ValueError("mutagen could not recognize the audio format")
+    if audio.tags is None:
+        audio.add_tags()
+
+    audio["title"] = track.title
+    if track.artist_string:
+        audio["artist"] = track.artist_string
+    if track.album:
+        audio["album"] = track.album
+    if track.track_number:
+        audio["tracknumber"] = str(track.track_number)
+    if _year(track.release_date):
+        audio["date"] = _year(track.release_date)
+    audio.save()
+
+
 _TAGGERS = {
     "mp3": _tag_mp3,
     "flac": _tag_vorbis,
@@ -190,10 +226,8 @@ def tag_file(
     downloaded from ``track.cover_url`` when ``embed_art`` is set. Never raises.
     """
     ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
-    tagger = _TAGGERS.get(ext)
-    if tagger is None:
-        logger.debug("No tagger for extension %r; leaving %s untouched.", ext, path)
-        return False
+    # Any unknown extension still gets Spotify text metadata via _tag_generic.
+    tagger = _TAGGERS.get(ext, _tag_generic)
 
     if embed_art and cover is None and track.cover_url:
         cover = _download_cover(track.cover_url)

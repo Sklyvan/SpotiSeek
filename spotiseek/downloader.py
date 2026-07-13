@@ -102,6 +102,26 @@ class Downloader:
         self._log_summary(results)
         return list(results)
 
+    def _early_stop(self, track: Track, require_extended: bool):
+        """Predicate that lets a search return early once a strong match arrives.
+
+        We stop as soon as an acceptable **lossless** candidate with a free
+        upload slot is available — that is the ideal outcome, so there is no
+        point waiting out the full search timeout for it.
+        """
+
+        def predicate(candidates: list[Candidate]) -> bool:
+            ranked = score_candidates(
+                track,
+                candidates,
+                self.config.match_strictness,
+                self.config.min_bitrate,
+                require_extended=require_extended,
+            )
+            return any(c.is_lossless and c.has_free_slots for c in ranked[:3])
+
+        return predicate
+
     async def _process_track(
         self,
         client: SoulseekClient,
@@ -136,7 +156,11 @@ class Downloader:
 
         logger.info("%s — searching for Extended Mix...", prefix)
         query = f"{track.search_query} extended mix"
-        candidates = await client.search(query, self.config.search_timeout)
+        candidates = await client.search(
+            query,
+            self.config.search_timeout,
+            stop_when=self._early_stop(track, require_extended=True),
+        )
         ranked = score_candidates(
             track,
             candidates,
@@ -175,7 +199,11 @@ class Downloader:
                 return DownloadResult(track, DownloadStatus.DOWNLOADED, path=existing)
 
         logger.info("%s — searching...", prefix)
-        candidates = await client.search(track.search_query, self.config.search_timeout)
+        candidates = await client.search(
+            track.search_query,
+            self.config.search_timeout,
+            stop_when=self._early_stop(track, require_extended=False),
+        )
         if not candidates:
             logger.warning("%s — no Soulseek results.", prefix)
             return DownloadResult(track, DownloadStatus.SKIPPED_NO_RESULTS)
@@ -243,7 +271,9 @@ class Downloader:
                     if extended
                     else track
                 )
-                tagging.tag_file(final_path, tag_track, embed_art=True)
+                # Tagging does blocking I/O (cover download + mutagen writes);
+                # run it off the event loop so parallel downloads aren't stalled.
+                await asyncio.to_thread(tagging.tag_file, final_path, tag_track, True)
             logger.info("%s — saved to %s", prefix, final_path)
             return DownloadResult(
                 track,

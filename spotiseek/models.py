@@ -52,6 +52,28 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
+# Featured-artist segments (Soulseek filenames rarely list them, so they hurt
+# search recall): "(feat. X)", "[featuring X]", " - with X".
+_FEAT_RE = re.compile(
+    r"\s*[\(\[][^)\]]*\b(?:feat|ft|featuring|with)\b\.?[^)\]]*[\)\]]", re.IGNORECASE
+)
+# Remaster / mono / stereo qualifiers appended by Spotify, e.g.
+# "Song - Remastered 2011", "Song - 2011 Remaster", "Song - Mono Version".
+_REMASTER_RE = re.compile(
+    r"\s*[-(\[]\s*(?:\d{4}\s*)?(?:re-?master(?:ed)?|mono|stereo)"
+    r"(?:\s*version)?(?:\s*\d{4})?\s*[)\]]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _search_title(title: str) -> str:
+    """Strip featured-artist and remaster noise to improve Soulseek recall."""
+    cleaned = _FEAT_RE.sub("", title or "")
+    cleaned = _REMASTER_RE.sub("", cleaned)
+    cleaned = _clean(cleaned)
+    return cleaned or _clean(title)
+
+
 @dataclass(slots=True)
 class Track:
     """A normalized track from any metadata provider."""
@@ -81,8 +103,13 @@ class Track:
 
     @property
     def search_query(self) -> str:
-        """Query string used to search Soulseek: 'primary artist title'."""
-        return _clean(f"{self.primary_artist} {self.title}")
+        """Query used to search Soulseek: 'primary artist title'.
+
+        The title is cleaned of featured-artist and remaster qualifiers, which
+        Soulseek filenames rarely include; the matcher still validates against
+        the full metadata, so recall improves without hurting precision.
+        """
+        return _clean(f"{self.primary_artist} {_search_title(self.title)}")
 
     @property
     def display(self) -> str:

@@ -37,7 +37,7 @@ class FakeClient:
     async def __aexit__(self, *exc):
         return False
 
-    async def search(self, query, timeout):
+    async def search(self, query, timeout, stop_when=None, **kwargs):
         type(self).search_calls += 1
         type(self).queries.append(query)
         if "extended mix" in query and type(self).ext_results is not None:

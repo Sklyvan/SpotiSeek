@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Callable
 
 from aioslsk.client import SoulSeekClient
 from aioslsk.protocol.primitives import AttributeKey, FileData
@@ -112,17 +113,49 @@ class SoulseekClient:
                 logger.debug("Error while stopping Soulseek client: %s", exc)
             self._started = False
 
-    async def search(self, query: str, timeout: float) -> list[Candidate]:
-        """Run a search and collect candidates for ``timeout`` seconds."""
+    async def search(
+        self,
+        query: str,
+        timeout: float,
+        stop_when: "Callable[[list[Candidate]], bool] | None" = None,
+        min_wait: float = 4.0,
+        poll_interval: float = 1.0,
+    ) -> list[Candidate]:
+        """Run a search and collect candidates.
+
+        Waits up to ``timeout`` seconds while peers reply. If ``stop_when`` is
+        given, results are polled every ``poll_interval`` seconds (after an
+        initial ``min_wait`` grace period so good peers can respond), and the
+        search returns early once the predicate is satisfied — this shortens the
+        common case where a great match arrives quickly.
+        """
         logger.debug("Searching Soulseek: %r (timeout %.0fs)", query, timeout)
         request = await self._client.searches.search(query)
-        await asyncio.sleep(timeout)
 
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        deadline = start + timeout
+        if stop_when is None:
+            await asyncio.sleep(timeout)
+        else:
+            while loop.time() < deadline:
+                await asyncio.sleep(min(poll_interval, max(0.0, deadline - loop.time())))
+                if loop.time() - start < min_wait:
+                    continue
+                if stop_when(self._collect(request)):
+                    logger.debug("Search %r satisfied early.", query)
+                    break
+
+        candidates = self._collect(request)
+        logger.debug("Search %r returned %d file(s).", query, len(candidates))
+        return candidates
+
+    @staticmethod
+    def _collect(request) -> list[Candidate]:
         candidates: list[Candidate] = []
         for result in request.results:
             for file in result.shared_items:
                 candidates.append(_file_to_candidate(result, file))
-        logger.debug("Search %r returned %d file(s).", query, len(candidates))
         return candidates
 
     async def download(self, candidate: Candidate, download_timeout: float) -> str:

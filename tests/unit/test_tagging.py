@@ -71,9 +71,22 @@ def test_tag_round_trip(ext, track, audio_dir, tmp_path) -> None:
     assert has_cover, f"no embedded cover for {ext}"
 
 
-def test_no_tagger_for_unknown_extension(track, tmp_path) -> None:
+def test_generic_tagger_handles_unknown_extension(track, audio_dir, tmp_path) -> None:
+    # A real audio file with an unusual extension: mutagen sniffs the content,
+    # so the generic fallback still writes the Spotify text metadata.
+    src = audio_dir / "sample.flac"
+    if not src.exists():
+        pytest.skip("missing flac fixture")
+    dst = tmp_path / "track.weirdext"
+    shutil.copy(src, dst)
+    assert tagging.tag_file(str(dst), track, embed_art=False) is True
+    assert "One More Time" in str(mutagen.File(dst)["title"])
+
+
+def test_tagger_returns_false_for_non_audio(track, tmp_path) -> None:
     path = tmp_path / "track.xyz"
-    path.write_bytes(b"not audio")
+    path.write_bytes(b"not audio at all")
+    # Not recognizable audio -> generic tagger fails gracefully, returns False.
     assert tagging.tag_file(str(path), track, embed_art=False) is False
 
 
