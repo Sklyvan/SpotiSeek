@@ -10,6 +10,7 @@ from spotiseek.config import (
     DEFAULT_SOULSEEK_PASSWORD,
     DEFAULT_SOULSEEK_USERNAME,
     Config,
+    default_download_dir,
     save_env,
 )
 from spotiseek.models import MatchStrictness
@@ -103,6 +104,30 @@ def test_save_env_writes_and_preserves(tmp_path) -> None:
     finally:
         for key in ("SPOTIFY_CLIENT_ID", "SOULSEEK_USERNAME"):
             os.environ.pop(key, None)
+
+
+def test_default_download_dir_uses_home_downloads(monkeypatch) -> None:
+    monkeypatch.setattr("sys.platform", "darwin")
+    assert default_download_dir() == Path.home() / "Downloads"
+
+
+def test_default_output_dir_is_downloads(monkeypatch, tmp_path) -> None:
+    _clear_env(monkeypatch)
+    cfg = Config.load(env_file=_missing_env_file(tmp_path))
+    assert cfg.output_dir == default_download_dir()
+
+
+def test_default_download_dir_linux_honors_xdg(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "user-dirs.dirs").write_text('XDG_DOWNLOAD_DIR="$HOME/Media/DL"\n')
+    assert default_download_dir() == Path.home() / "Media" / "DL"
+
+
+def test_default_download_dir_linux_fallback(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))  # no user-dirs.dirs present
+    assert default_download_dir() == Path.home() / "Downloads"
 
 
 def test_save_env_creates_missing_file(tmp_path) -> None:

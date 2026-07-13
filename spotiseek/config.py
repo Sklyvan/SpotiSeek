@@ -7,6 +7,7 @@ Resolution order (highest priority first): explicit constructor arguments
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,11 +15,35 @@ from dotenv import load_dotenv, set_key
 
 from .models import MatchStrictness
 
-DEFAULT_OUTPUT_DIR = "downloads"
 DEFAULT_ENV_FILE = ".env"
 DEFAULT_SEARCH_TIMEOUT = 15.0
 DEFAULT_SOULSEEK_USERNAME = "Sklyvan"
 DEFAULT_SOULSEEK_PASSWORD = "12345"
+
+
+def default_download_dir() -> Path:
+    """Return the operating system's Downloads folder.
+
+    Works on macOS, Windows and Linux. On Linux the XDG user-dirs config is
+    honored (so localized/relocated Downloads folders are respected); elsewhere,
+    and as a fallback, ``~/Downloads`` is used.
+    """
+    home = Path.home()
+    if sys.platform.startswith("linux"):
+        config_home = os.environ.get("XDG_CONFIG_HOME") or str(home / ".config")
+        dirs_file = Path(config_home) / "user-dirs.dirs"
+        try:
+            for line in dirs_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("XDG_DOWNLOAD_DIR"):
+                    raw = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    raw = raw.replace("$HOME", str(home))
+                    resolved = Path(os.path.expandvars(raw)).expanduser()
+                    if str(resolved):
+                        return resolved
+        except OSError:
+            pass
+    return home / "Downloads"
 
 
 def _env(name: str) -> str | None:
@@ -59,7 +84,7 @@ class Config:
     soulseek_password: str = DEFAULT_SOULSEEK_PASSWORD
 
     # Behaviour
-    output_dir: Path = field(default_factory=lambda: Path(DEFAULT_OUTPUT_DIR))
+    output_dir: Path = field(default_factory=default_download_dir)
     parallel: int = 1
     match_strictness: MatchStrictness = MatchStrictness.BALANCED
     search_timeout: float = DEFAULT_SEARCH_TIMEOUT

@@ -90,7 +90,7 @@ To get credentials: create a free app at
 ## 🚀 Usage
 
 ```bash
-# 🎧 Download a single track (sequential, into ./downloads)
+# 🎧 Download a single track (sequential, into your Downloads folder)
 spotiseek download "https://open.spotify.com/track/0DiWol3AO6WpXZgp0goxAV"
 
 # 💿 Download an entire album, 5 downloads at a time, into a chosen folder
@@ -114,7 +114,7 @@ spotiseek info "<url>"
 
 | Option | Description | Default |
 |---|---|---|
-| `-o, --output DIR` | Where to save files | `downloads` |
+| `-o, --output DIR` | Where to save files | your Downloads folder |
 | `-p, --parallel N` | Concurrent downloads (`1` = sequential) | `1` |
 | `--extended-mix` | Prefer the official *(Extended Mix)*; fall back to standard | off |
 | `--match {strict\|balanced\|lenient}` | How strictly to match results | `balanced` |

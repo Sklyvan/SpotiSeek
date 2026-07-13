@@ -34,8 +34,9 @@ def main() -> None:
 @main.command()
 @click.argument("url")
 @click.option(
-    "-o", "--output", "output", default="downloads", show_default=True,
-    help="Directory to save downloaded tracks into.",
+    "-o", "--output", "output", default=None,
+    help="Directory to save downloaded tracks into "
+    "(default: your Downloads folder).",
 )
 @click.option(
     "-p", "--parallel", type=click.IntRange(min=1), default=1, show_default=True,

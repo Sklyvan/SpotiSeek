@@ -42,6 +42,7 @@ from .config import (
     DEFAULT_SOULSEEK_PASSWORD,
     DEFAULT_SOULSEEK_USERNAME,
     Config,
+    default_download_dir,
     save_env,
 )
 from .downloader import run_download
@@ -147,7 +148,11 @@ class MainWindow(QMainWindow):
         form = QFormLayout(opts)
 
         out_row = QHBoxLayout()
-        self.output_edit = QLineEdit("downloads")
+        self.output_edit = QLineEdit(str(default_download_dir()))
+        # Wide enough to show a full path, and scrolled to the start so the
+        # beginning of the path is visible rather than the tail.
+        self.output_edit.setMinimumWidth(420)
+        self.output_edit.setCursorPosition(0)
         browse = QPushButton("Browse…")
         browse.clicked.connect(self._browse_output)
         out_row.addWidget(self.output_edit, 1)
@@ -277,7 +282,7 @@ class MainWindow(QMainWindow):
             or DEFAULT_SOULSEEK_USERNAME,
             soulseek_password=self.slsk_pass.text().strip()
             or DEFAULT_SOULSEEK_PASSWORD,
-            output_dir=Path(self.output_edit.text().strip() or "downloads"),
+            output_dir=Path(self.output_edit.text().strip() or default_download_dir()),
             parallel=self.parallel.value(),
             match_strictness=MatchStrictness(self.match.currentData()),
             search_timeout=self.search_timeout.value(),
@@ -294,6 +299,7 @@ class MainWindow(QMainWindow):
         )
         if chosen:
             self.output_edit.setText(chosen)
+            self.output_edit.setCursorPosition(0)
 
     def _start_download(self) -> None:
         self._start("download")
