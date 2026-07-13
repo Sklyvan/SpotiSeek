@@ -15,7 +15,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import Qt, QObject, QThread, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -131,9 +131,6 @@ class MainWindow(QMainWindow):
         # URL + actions
         url_row = QHBoxLayout()
         self.url_edit = QLineEdit()
-        self.url_edit.setPlaceholderText(
-            "Spotify track / album / playlist URL (or spotify: URI)"
-        )
         self.url_edit.returnPressed.connect(self._start_download)
         self.download_btn = QPushButton("Download")
         self.download_btn.clicked.connect(self._start_download)
@@ -146,7 +143,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(url_row)
 
         # Options
-        opts = QGroupBox("Download options")
+        opts = QGroupBox("Download Options")
         form = QFormLayout(opts)
 
         out_row = QHBoxLayout()
@@ -155,47 +152,50 @@ class MainWindow(QMainWindow):
         browse.clicked.connect(self._browse_output)
         out_row.addWidget(self.output_edit, 1)
         out_row.addWidget(browse)
-        form.addRow("Output folder:", out_row)
+        form.addRow("Output Folder:", out_row)
 
         self.parallel = QSpinBox()
         self.parallel.setRange(1, 16)
         self.parallel.setValue(1)
+        self.parallel.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.parallel.setToolTip("Concurrent downloads (1 = sequential).")
-        form.addRow("Parallel downloads:", self.parallel)
+        form.addRow("Parallel Downloads:", self.parallel)
 
         self.match = QComboBox()
         self.match.addItems([m.value for m in MatchStrictness])
         self.match.setCurrentText(MatchStrictness.BALANCED.value)
-        form.addRow("Match strictness:", self.match)
+        form.addRow("Match Strictness:", self.match)
 
         self.search_timeout = QDoubleSpinBox()
         self.search_timeout.setRange(5.0, 60.0)
         self.search_timeout.setValue(15.0)
         self.search_timeout.setSuffix(" s")
-        form.addRow("Search timeout:", self.search_timeout)
+        self.search_timeout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        form.addRow("Search Timeout:", self.search_timeout)
 
         self.min_bitrate = QSpinBox()
         self.min_bitrate.setRange(0, 1411)
         self.min_bitrate.setSingleStep(32)
-        self.min_bitrate.setSpecialValueText("no minimum")
+        self.min_bitrate.setSpecialValueText("No minimum")
         self.min_bitrate.setSuffix(" kbps")
-        form.addRow("Min bitrate (lossy):", self.min_bitrate)
+        self.min_bitrate.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        form.addRow("Min Bitrate (Lossy):", self.min_bitrate)
 
-        self.extended_check = QCheckBox("Prefer official Extended Mix")
+        self.extended_check = QCheckBox("Prefer Official Extended Mix")
         form.addRow(self.extended_check)
-        self.tag_check = QCheckBox("Write tags and embed cover art")
+        self.tag_check = QCheckBox("Write Tags and Embed Cover Art")
         self.tag_check.setChecked(True)
         form.addRow(self.tag_check)
-        self.dryrun_check = QCheckBox("Dry run (search and match only, no download)")
+        self.dryrun_check = QCheckBox("Dry Run (Search and Match Only, No Download)")
         form.addRow(self.dryrun_check)
 
         layout.addWidget(opts)
 
         # Credentials
-        creds = QGroupBox("Settings (saved to .env)")
+        creds = QGroupBox("Settings")
         cform = QFormLayout(creds)
         self.spotify_id = QLineEdit()
-        self.spotify_id.setPlaceholderText("optional — public data works without it")
+        self.spotify_id.setPlaceholderText("Optional — public data works without it")
         self.spotify_secret = QLineEdit()
         self.spotify_secret.setEchoMode(QLineEdit.EchoMode.Password)
         self.slsk_user = QLineEdit()
@@ -203,9 +203,9 @@ class MainWindow(QMainWindow):
         self.slsk_pass.setEchoMode(QLineEdit.EchoMode.Password)
         cform.addRow("Spotify Client ID:", self.spotify_id)
         cform.addRow("Spotify Client Secret:", self.spotify_secret)
-        cform.addRow("Soulseek username:", self.slsk_user)
-        cform.addRow("Soulseek password:", self.slsk_pass)
-        save_btn = QPushButton("Save settings to .env")
+        cform.addRow("Soulseek Username:", self.slsk_user)
+        cform.addRow("Soulseek Password:", self.slsk_pass)
+        save_btn = QPushButton("Save Settings")
         save_btn.clicked.connect(self._save_settings)
         cform.addRow(save_btn)
         layout.addWidget(creds)
@@ -245,7 +245,7 @@ class MainWindow(QMainWindow):
 
     def _save_settings(self) -> None:
         try:
-            path = save_env(
+            save_env(
                 {
                     "SPOTIFY_CLIENT_ID": self.spotify_id.text().strip(),
                     "SPOTIFY_CLIENT_SECRET": self.spotify_secret.text().strip(),
@@ -258,8 +258,8 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.critical(self, "SpotiSeek", f"Could not save settings:\n{exc}")
             return
-        self.statusBar().showMessage(f"Saved settings to {path}")
-        logger.info("Saved settings to %s", path)
+        self.statusBar().showMessage("Settings Saved")
+        logger.info("Settings saved.")
 
     # -- config from fields ------------------------------------------------ #
     def _current_config(self) -> Config:
