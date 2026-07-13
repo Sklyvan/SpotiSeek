@@ -216,6 +216,7 @@ using mutagen, dispatched by file extension:
 | OGG/Opus | Vorbis comments | base64 `metadata_block_picture` |
 | MP4/M4A/AAC | iTunes atoms | `covr` |
 | WAV | ID3 chunk | `APIC` |
+| AIFF/AIF/AIFC | ID3 chunk | `APIC` |
 
 🖼️ Cover art is downloaded once from `track.cover_url`. Only fields SpotiSeek
 actually knows are written, so existing tags on the file (e.g. an album name the

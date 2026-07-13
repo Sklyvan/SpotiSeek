@@ -127,11 +127,10 @@ def _tag_mp4(path: str, track: Track, cover: tuple[bytes, str] | None) -> None:
     audio.save()
 
 
-def _tag_wav(path: str, track: Track, cover: tuple[bytes, str] | None) -> None:
+def _tag_id3_container(audio, track: Track, cover: tuple[bytes, str] | None) -> None:
+    """Write ID3 tags into an already-opened container (WAV / AIFF)."""
     from mutagen.id3 import APIC, TALB, TDRC, TIT2, TPE1, TRCK
-    from mutagen.wave import WAVE
 
-    audio = WAVE(path)
     if audio.tags is None:
         audio.add_tags()
     tags = audio.tags
@@ -150,6 +149,18 @@ def _tag_wav(path: str, track: Track, cover: tuple[bytes, str] | None) -> None:
     audio.save()
 
 
+def _tag_wav(path: str, track: Track, cover: tuple[bytes, str] | None) -> None:
+    from mutagen.wave import WAVE
+
+    _tag_id3_container(WAVE(path), track, cover)
+
+
+def _tag_aiff(path: str, track: Track, cover: tuple[bytes, str] | None) -> None:
+    from mutagen.aiff import AIFF
+
+    _tag_id3_container(AIFF(path), track, cover)
+
+
 _TAGGERS = {
     "mp3": _tag_mp3,
     "flac": _tag_vorbis,
@@ -161,6 +172,9 @@ _TAGGERS = {
     "aac": _tag_mp4,
     "wav": _tag_wav,
     "wave": _tag_wav,
+    "aiff": _tag_aiff,
+    "aif": _tag_aiff,
+    "aifc": _tag_aiff,
 }
 
 

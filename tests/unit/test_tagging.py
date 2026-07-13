@@ -48,7 +48,7 @@ def _read(path: Path, keys: list[str]):
     return None
 
 
-@pytest.mark.parametrize("ext", ["mp3", "flac", "wav", "m4a"])
+@pytest.mark.parametrize("ext", ["mp3", "flac", "wav", "m4a", "aiff"])
 def test_tag_round_trip(ext, track, audio_dir, tmp_path) -> None:
     path = _copy_fixture(audio_dir, tmp_path, ext)
     if path is None:
