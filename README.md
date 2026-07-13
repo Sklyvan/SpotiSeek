@@ -42,6 +42,23 @@ never have to touch a terminal or edit `.env` by hand).
   network itself; you don't need a separate Soulseek client running.
 - *(Optional)* 🎼 **Spotify Developer credentials** for richest metadata — see below.
 
+## 📥 Prebuilt executables
+
+Don't want to install Python? Grab a **single-file build** for your OS:
+
+- From a tagged **[Release](../../releases)**, or
+- From the **Actions** tab → latest *Build Executables* run → **Artifacts**
+  (`SpotiSeek-windows.exe`, `SpotiSeek-macos`, `SpotiSeek-linux`).
+
+These launch the desktop GUI directly — no Python required. Notes:
+
+- 🍎 **macOS:** the binary is unsigned, so the first time right-click it →
+  **Open** (or `xattr -d com.apple.quarantine SpotiSeek-macos`).
+- 🐧 **Linux:** `chmod +x SpotiSeek-linux` first; a desktop environment with the
+  usual X11/`xcb` libraries is required.
+
+To produce these yourself, see [Building executables](#-building-executables).
+
 ## 🛠️ Installation
 
 Using [uv](https://docs.astral.sh/uv/) (recommended):
@@ -174,6 +191,22 @@ if none is found it downloads the standard version and says so in the log.
 
 📚 For the technical details — architecture, matching heuristic, and known
 limitations — see [DOCUMENTATION.md](DOCUMENTATION.md).
+
+## 🔨 Building executables
+
+CI (GitHub Actions, `.github/workflows/build.yml`) builds a single-file
+executable for **Windows, macOS and Linux** on every version tag and on manual
+runs. To build one locally for your current OS:
+
+```bash
+uv sync --extra gui --group build
+uv run python scripts/build_executable.py
+# -> dist/SpotiSeek  (or dist/SpotiSeek.exe on Windows)
+```
+
+Uses [PyInstaller](https://pyinstaller.org/) (`--onefile`). If
+`spotiseek/assets/icon.png` exists it's converted to the platform icon format
+automatically.
 
 ## 🧪 Development
 

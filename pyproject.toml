@@ -39,6 +39,12 @@ dev = [
     "pytest-cov>=5.0.0",
     "pyside6>=6.7.0",
 ]
+# Tools for building the standalone executables (used by CI and
+# scripts/build_executable.py). Not installed by default.
+build = [
+    "pyinstaller>=6.11.0",
+    "pillow>=10.0.0",
+]
 
 [build-system]
 requires = ["hatchling"]

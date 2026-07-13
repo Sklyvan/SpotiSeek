@@ -332,7 +332,29 @@ GUI tests run under `QT_QPA_PLATFORM=offscreen`, so no display is required.
 
 ---
 
-## 10. ⚠️ Known limitations
+## 10. 📦 Packaging & CI
+
+Standalone executables are produced with **PyInstaller** (`--onefile --windowed`)
+driven by `scripts/build_executable.py`, which runs identically on all three
+OSes. The frozen entry point is `scripts/spotiseek_app.py` (it launches the GUI,
+or does an import-only `--selftest` used to verify a bundle). The build bundles
+`spotiseek/assets` so the runtime logo works, and converts `icon.png` to
+`.ico`/`.icns` via Pillow when present.
+
+CI lives in `.github/workflows/build.yml`:
+
+- 🧱 A **matrix** over `ubuntu-latest`, `windows-latest`, `macos-latest`
+  (executables can't be cross-compiled, so each is built on its own runner).
+- 🐍 Python 3.14 is provisioned via `uv python install`; deps come from
+  `uv sync --extra gui --group build`.
+- ✅ Each build runs the executable with `--selftest` before uploading.
+- 📤 Binaries are uploaded as workflow **artifacts**, and on a `v*` **tag** they
+  are also attached to a **GitHub Release**.
+- Triggers: manual (`workflow_dispatch`) or pushing a version tag.
+
+---
+
+## 11. ⚠️ Known limitations
 
 - 🔒 **Spotify API premium gate.** As noted in §3.3, the official Web API may
   return 403 until the app's owner account is Premium (propagation can take
@@ -358,7 +380,7 @@ GUI tests run under `QT_QPA_PLATFORM=offscreen`, so no display is required.
 
 ---
 
-## 11. 🔮 Future work
+## 12. 🔮 Future work
 
 - 🎚️ A `--format`/quality-policy flag to make the format preference configurable.
 - 📝 Optional per-track "missing report" output file.

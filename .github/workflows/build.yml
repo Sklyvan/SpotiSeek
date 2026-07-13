@@ -1,0 +1,80 @@
+name: Build Executables
+
+# Run manually from the Actions tab, or automatically when a version tag is
+# pushed (e.g. `git tag v0.1.0 && git push --tags`). Tag builds also attach the
+# executables to a GitHub Release.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # needed to create/update releases on tag builds
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: SpotiSeek-linux
+          - os: windows-latest
+            asset: SpotiSeek-windows.exe
+          - os: macos-latest
+            asset: SpotiSeek-macos
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Install dependencies (app + GUI + build tools)
+        run: uv sync --extra gui --group build
+
+      - name: Build executable
+        run: uv run python scripts/build_executable.py
+
+      - name: Smoke-test the executable (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x dist/SpotiSeek
+          dist/SpotiSeek --selftest
+
+      - name: Smoke-test the executable (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\SpotiSeek.exe -ArgumentList '--selftest' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p out
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp dist/SpotiSeek.exe "out/${{ matrix.asset }}"
+          else
+            cp dist/SpotiSeek "out/${{ matrix.asset }}"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: out/${{ matrix.asset }}
+          if-no-files-found: error
+
+      - name: Attach to release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/${{ matrix.asset }}

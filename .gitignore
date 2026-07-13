@@ -141,3 +141,7 @@ dmypy.json
 .pyre/
 .pytype/
 cython_debug/
+
+# Generated platform icons (from spotiseek/assets/icon.png at build time)
+spotiseek/assets/icon.ico
+spotiseek/assets/icon.icns
