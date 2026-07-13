@@ -40,8 +40,6 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .config import (
-    DEFAULT_SOULSEEK_PASSWORD,
-    DEFAULT_SOULSEEK_USERNAME,
     Config,
     default_download_dir,
     save_env,
@@ -210,7 +208,7 @@ class MainWindow(QMainWindow):
         self.tag_check = QCheckBox("Write Tags and Embed Cover Art")
         self.tag_check.setChecked(True)
         form.addRow(self.tag_check)
-        self.dryrun_check = QCheckBox("Dry Run (Search and Match Only, No Download)")
+        self.dryrun_check = QCheckBox("Dry Run")
         form.addRow(self.dryrun_check)
 
         layout.addWidget(opts)
@@ -219,12 +217,22 @@ class MainWindow(QMainWindow):
         creds = QGroupBox("Settings")
         cform = QFormLayout(creds)
         self.spotify_id = QLineEdit()
-        self.spotify_id.setPlaceholderText("Optional — public data works without it")
+        self.spotify_id.setPlaceholderText("Optional")
         self.spotify_secret = QLineEdit()
         self.spotify_secret.setEchoMode(QLineEdit.EchoMode.Password)
+        self.spotify_secret.setPlaceholderText("Optional")
+        _slsk_tip = (
+            "Any username/password works — Soulseek claims the name on first "
+            "login, so no separate account registration is needed. It cannot "
+            "be left blank."
+        )
         self.slsk_user = QLineEdit()
+        self.slsk_user.setPlaceholderText("Required")
+        self.slsk_user.setToolTip(_slsk_tip)
         self.slsk_pass = QLineEdit()
         self.slsk_pass.setEchoMode(QLineEdit.EchoMode.Password)
+        self.slsk_pass.setPlaceholderText("Required")
+        self.slsk_pass.setToolTip(_slsk_tip)
         cform.addRow("Spotify Client ID:", self.spotify_id)
         cform.addRow("Spotify Client Secret:", self.spotify_secret)
         cform.addRow("Soulseek Username:", self.slsk_user)
@@ -264,8 +272,8 @@ class MainWindow(QMainWindow):
         cfg = Config.load()
         self.spotify_id.setText(cfg.spotify_client_id or "")
         self.spotify_secret.setText(cfg.spotify_client_secret or "")
-        self.slsk_user.setText(cfg.soulseek_username or DEFAULT_SOULSEEK_USERNAME)
-        self.slsk_pass.setText(cfg.soulseek_password or DEFAULT_SOULSEEK_PASSWORD)
+        self.slsk_user.setText(cfg.soulseek_username or "")
+        self.slsk_pass.setText(cfg.soulseek_password or "")
 
     def _save_settings(self) -> None:
         try:
@@ -273,10 +281,8 @@ class MainWindow(QMainWindow):
                 {
                     "SPOTIFY_CLIENT_ID": self.spotify_id.text().strip(),
                     "SPOTIFY_CLIENT_SECRET": self.spotify_secret.text().strip(),
-                    "SOULSEEK_USERNAME": self.slsk_user.text().strip()
-                    or DEFAULT_SOULSEEK_USERNAME,
-                    "SOULSEEK_PASSWORD": self.slsk_pass.text().strip()
-                    or DEFAULT_SOULSEEK_PASSWORD,
+                    "SOULSEEK_USERNAME": self.slsk_user.text().strip(),
+                    "SOULSEEK_PASSWORD": self.slsk_pass.text().strip(),
                 }
             )
         except OSError as exc:
@@ -290,10 +296,8 @@ class MainWindow(QMainWindow):
         return Config(
             spotify_client_id=self.spotify_id.text().strip() or None,
             spotify_client_secret=self.spotify_secret.text().strip() or None,
-            soulseek_username=self.slsk_user.text().strip()
-            or DEFAULT_SOULSEEK_USERNAME,
-            soulseek_password=self.slsk_pass.text().strip()
-            or DEFAULT_SOULSEEK_PASSWORD,
+            soulseek_username=self.slsk_user.text().strip(),
+            soulseek_password=self.slsk_pass.text().strip(),
             output_dir=Path(self.output_edit.text().strip() or default_download_dir()),
             parallel=self.parallel.value(),
             match_strictness=MatchStrictness(self.match.currentData()),

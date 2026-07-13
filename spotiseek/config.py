@@ -17,8 +17,6 @@ from .models import MatchStrictness
 
 DEFAULT_ENV_FILE = ".env"
 DEFAULT_SEARCH_TIMEOUT = 15.0
-DEFAULT_SOULSEEK_USERNAME = "Sklyvan"
-DEFAULT_SOULSEEK_PASSWORD = "12345"
 
 
 def default_download_dir() -> Path:
@@ -79,9 +77,9 @@ class Config:
     spotify_client_id: str | None = None
     spotify_client_secret: str | None = None
 
-    # Soulseek
-    soulseek_username: str = DEFAULT_SOULSEEK_USERNAME
-    soulseek_password: str = DEFAULT_SOULSEEK_PASSWORD
+    # Soulseek (no built-in default — the user supplies their own login)
+    soulseek_username: str = ""
+    soulseek_password: str = ""
 
     # Behaviour
     output_dir: Path = field(default_factory=default_download_dir)
@@ -96,6 +94,10 @@ class Config:
     @property
     def has_spotify_credentials(self) -> bool:
         return bool(self.spotify_client_id and self.spotify_client_secret)
+
+    @property
+    def has_soulseek_credentials(self) -> bool:
+        return bool(self.soulseek_username and self.soulseek_password)
 
     @classmethod
     def load(
@@ -122,14 +124,10 @@ class Config:
             spotify_client_id=_env("SPOTIFY_CLIENT_ID"),
             spotify_client_secret=_env("SPOTIFY_CLIENT_SECRET"),
             soulseek_username=(
-                soulseek_username
-                or _env("SOULSEEK_USERNAME")
-                or DEFAULT_SOULSEEK_USERNAME
+                soulseek_username or _env("SOULSEEK_USERNAME") or ""
             ),
             soulseek_password=(
-                soulseek_password
-                or _env("SOULSEEK_PASSWORD")
-                or DEFAULT_SOULSEEK_PASSWORD
+                soulseek_password or _env("SOULSEEK_PASSWORD") or ""
             ),
         )
 

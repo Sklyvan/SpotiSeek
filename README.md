@@ -38,8 +38,10 @@ never have to touch a terminal or edit `.env` by hand).
 ## 📦 Requirements
 
 - 🐍 **Python 3.14+**
-- 🔑 A **Soulseek account** (username + password). SpotiSeek connects to the
-  network itself; you don't need a separate Soulseek client running.
+- 🔑 A **Soulseek login** (username + password). You don't need to pre-register:
+  any username works and is claimed on first login — but it can't be left blank.
+  SpotiSeek connects to the network itself; you don't need a separate Soulseek
+  client running.
 - *(Optional)* 🎼 **Spotify Developer credentials** for richest metadata — see below.
 
 ## 📥 Prebuilt executables

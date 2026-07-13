@@ -7,8 +7,6 @@ from pathlib import Path
 import os
 
 from spotiseek.config import (
-    DEFAULT_SOULSEEK_PASSWORD,
-    DEFAULT_SOULSEEK_USERNAME,
     Config,
     default_download_dir,
     save_env,
@@ -36,8 +34,10 @@ def _missing_env_file(tmp_path: Path) -> str:
 def test_defaults(monkeypatch, tmp_path) -> None:
     _clear_env(monkeypatch)
     cfg = Config.load(env_file=_missing_env_file(tmp_path))
-    assert cfg.soulseek_username == DEFAULT_SOULSEEK_USERNAME
-    assert cfg.soulseek_password == DEFAULT_SOULSEEK_PASSWORD
+    # No credentials are baked in — the user supplies their own Soulseek login.
+    assert cfg.soulseek_username == ""
+    assert cfg.soulseek_password == ""
+    assert cfg.has_soulseek_credentials is False
     assert cfg.parallel == 1
     assert cfg.match_strictness is MatchStrictness.BALANCED
     assert cfg.tag is True

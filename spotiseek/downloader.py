@@ -10,7 +10,7 @@ import re
 import shutil
 
 from .config import Config
-from .errors import DownloadError
+from .errors import ConfigError, DownloadError
 from .models import (
     Candidate,
     DownloadResult,
@@ -93,6 +93,12 @@ class Downloader:
             logger.debug("Progress callback raised (ignored): %s", exc)
 
     async def run(self, url: str) -> list[DownloadResult]:
+        if not self.config.has_soulseek_credentials:
+            raise ConfigError(
+                "Soulseek credentials are required to download. Set your "
+                "username and password (in the GUI's Settings, via --slsk-user/"
+                "--slsk-pass, or SOULSEEK_USERNAME/SOULSEEK_PASSWORD in .env)."
+            )
         kind, spotify_id = parse_spotify_url(url)
         tracks, source = fetch_tracks(self.config, kind, spotify_id)
         logger.info(

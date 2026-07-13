@@ -1,9 +1,10 @@
 """Live Soulseek integration test: log in and search.
 
-Requires network access and a working Soulseek account (defaults to the
-configured Sklyvan credentials). Search results are peer-dependent, so we only
-assert that login succeeds and the search returns without error; a popular
-query is very likely (but not guaranteed) to return candidates.
+Requires network access and Soulseek credentials configured in the environment
+/ .env (SOULSEEK_USERNAME + SOULSEEK_PASSWORD); the test is skipped if they are
+absent. Search results are peer-dependent, so we only assert that login
+succeeds and the search returns without error; a popular query is very likely
+(but not guaranteed) to return candidates.
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ pytestmark = pytest.mark.integration
 
 async def test_login_and_search(tmp_path) -> None:
     config = Config.load()
+    if not config.has_soulseek_credentials:
+        pytest.skip("Soulseek credentials not configured (set SOULSEEK_USERNAME/PASSWORD)")
     async with SoulseekClient(
         config.soulseek_username,
         config.soulseek_password,
