@@ -53,14 +53,17 @@ def _clean(text: str) -> str:
 
 
 # Featured-artist segments (Soulseek filenames rarely list them, so they hurt
-# search recall): "(feat. X)", "[featuring X]", " - with X".
+# search recall): "(feat. X)", "[featuring X]". Deliberately NOT "with", which
+# is a common English word that also appears in legitimate titles
+# (e.g. "Recorded with Orchestra").
 _FEAT_RE = re.compile(
-    r"\s*[\(\[][^)\]]*\b(?:feat|ft|featuring|with)\b\.?[^)\]]*[\)\]]", re.IGNORECASE
+    r"\s*[\(\[][^)\]]*\b(?:feat|ft|featuring)\b\.?[^)\]]*[\)\]]", re.IGNORECASE
 )
-# Remaster / mono / stereo qualifiers appended by Spotify, e.g.
-# "Song - Remastered 2011", "Song - 2011 Remaster", "Song - Mono Version".
+# Remaster qualifiers appended by Spotify, e.g. "Song - Remastered 2011",
+# "Song - 2011 Remaster". Only "remaster(ed)" is stripped — mono/stereo are left
+# intact because they can be the actual master a user wants (e.g. "Help! - Mono").
 _REMASTER_RE = re.compile(
-    r"\s*[-(\[]\s*(?:\d{4}\s*)?(?:re-?master(?:ed)?|mono|stereo)"
+    r"\s*[-(\[]\s*(?:\d{4}\s*)?re-?master(?:ed)?"
     r"(?:\s*version)?(?:\s*\d{4})?\s*[)\]]?\s*$",
     re.IGNORECASE,
 )

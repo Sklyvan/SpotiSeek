@@ -142,6 +142,33 @@ def _passes_duration(track: Track, candidate: Candidate, tolerance: int | None) 
     return abs(candidate.duration - track.duration_s) <= tolerance
 
 
+def has_ready_lossless_match(
+    track: Track,
+    candidates: list[Candidate],
+    strictness: MatchStrictness = MatchStrictness.BALANCED,
+    require_extended: bool = False,
+) -> bool:
+    """Cheap early-stop check for searching: is a lossless candidate with a free
+    upload slot already available and matching?
+
+    Short-circuits on the first qualifier and only fuzzy-matches lossless,
+    free-slot candidates, so it is far cheaper than a full ``score_candidates``
+    pass to run repeatedly while a search is still collecting results.
+    """
+    name_threshold = _NAME_THRESHOLD[strictness]
+    tolerance = None if require_extended else _DURATION_TOLERANCE_S[strictness]
+    for candidate in candidates:
+        if not (candidate.is_lossless and candidate.has_free_slots):
+            continue
+        if require_extended and not is_official_extended_mix(track, candidate):
+            continue
+        if _name_score(track, candidate) < name_threshold:
+            continue
+        if _passes_duration(track, candidate, tolerance):
+            return True
+    return False
+
+
 def score_candidates(
     track: Track,
     candidates: list[Candidate],

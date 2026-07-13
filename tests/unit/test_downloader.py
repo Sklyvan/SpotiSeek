@@ -256,6 +256,25 @@ async def test_extended_mix_skip_if_present(patched, tmp_path) -> None:
     assert patched.FakeClient.search_calls == 0
 
 
+async def test_unexpected_error_does_not_abort_run(patched, monkeypatch, tmp_path) -> None:
+    # Two tracks; searching raises for all, but the run must still complete with
+    # a FAILED result per track rather than propagating and aborting everything.
+    patched.state["tracks"] = [
+        Track(title="Song A", artists=["Artist"], duration_ms=200000),
+        Track(title="Song B", artists=["Artist"], duration_ms=200000),
+    ]
+
+    async def boom(self, *a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(patched.FakeClient, "search", boom)
+    results = await dl.run_download(_config(tmp_path, parallel=2), TRACK_URL)
+
+    assert len(results) == 2
+    assert all(r.status is DownloadStatus.FAILED for r in results)
+    assert all("boom" in (r.error or "") for r in results)
+
+
 async def test_parallel_processes_all_tracks(patched, tmp_path) -> None:
     patched.state["tracks"] = [
         Track(title=f"Song {i}", artists=["Artist"], duration_ms=200000)

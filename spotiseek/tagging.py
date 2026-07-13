@@ -11,7 +11,6 @@ from the track's Spotify cover URL and cached per URL for the run.
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 
 import requests
 
@@ -19,25 +18,31 @@ from .models import Track
 
 logger = logging.getLogger(__name__)
 
+# Successful cover-art downloads cached by URL, so an album/playlist that shares
+# one cover downloads it once. Only *successes* are cached — a transient failure
+# must not permanently disable artwork for the run.
+_cover_cache: dict[str, tuple[bytes, str]] = {}
 
-@lru_cache(maxsize=64)
+
 def _download_cover(url: str, timeout: float = 20.0) -> tuple[bytes, str] | None:
-    """Download cover art, returning (bytes, mime) or None on failure.
-
-    Cached by URL so an album/playlist that shares one cover downloads it once.
-    """
+    """Download cover art, returning (bytes, mime) or None on failure."""
+    cached = _cover_cache.get(url)
+    if cached is not None:
+        return cached
     try:
         resp = requests.get(url, timeout=timeout)
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.debug("Could not download cover art from %s: %s", url, exc)
-        return None
+        return None  # not cached: a later track may retry successfully
     data = resp.content
     mime = resp.headers.get("Content-Type", "")
     if not mime.startswith("image/"):
         # Sniff the magic bytes if the server did not send a useful type.
         mime = "image/png" if data[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
-    return data, mime
+    result = (data, mime)
+    _cover_cache[url] = result
+    return result
 
 
 def _year(release_date: str | None) -> str | None:

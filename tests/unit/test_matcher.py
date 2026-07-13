@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from spotiseek.models import MatchStrictness, Track
 from spotiseek.soulseek.matcher import (
+    has_ready_lossless_match,
     is_extended_mix,
     is_official_extended_mix,
     score_candidates,
@@ -180,6 +181,29 @@ def test_require_extended_prefers_cleaner_official(sample_track) -> None:
     ranked = score_candidates(sample_track, cands, MatchStrictness.BALANCED,
                               require_extended=True)
     assert ranked[0].username == "clean"
+
+
+def test_has_ready_lossless_match(sample_track) -> None:
+    # Lossless + free slot + matching -> ready.
+    ready = [make_candidate(filename="Daft Punk - One More Time.flac",
+                            extension="flac", duration=320, has_free_slots=True)]
+    assert has_ready_lossless_match(sample_track, ready, MatchStrictness.BALANCED)
+
+    # Lossless but no free slot -> not ready.
+    queued = [make_candidate(filename="Daft Punk - One More Time.flac",
+                             extension="flac", duration=320, has_free_slots=False)]
+    assert not has_ready_lossless_match(sample_track, queued, MatchStrictness.BALANCED)
+
+    # Free slot but lossy -> not "ready lossless".
+    lossy = [make_candidate(filename="Daft Punk - One More Time.mp3",
+                            extension="mp3", bitrate=320, duration=320,
+                            has_free_slots=True)]
+    assert not has_ready_lossless_match(sample_track, lossy, MatchStrictness.BALANCED)
+
+    # Lossless + free slot but wrong song -> not ready.
+    wrong = [make_candidate(filename="Other Artist - Other Song.flac",
+                            extension="flac", duration=320, has_free_slots=True)]
+    assert not has_ready_lossless_match(sample_track, wrong, MatchStrictness.BALANCED)
 
 
 def test_free_slot_preferred_over_queued(sample_track) -> None:

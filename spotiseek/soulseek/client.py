@@ -135,6 +135,7 @@ class SoulseekClient:
         loop = asyncio.get_running_loop()
         start = loop.time()
         deadline = start + timeout
+        candidates: list[Candidate] | None = None
         if stop_when is None:
             await asyncio.sleep(timeout)
         else:
@@ -142,13 +143,27 @@ class SoulseekClient:
                 await asyncio.sleep(min(poll_interval, max(0.0, deadline - loop.time())))
                 if loop.time() - start < min_wait:
                     continue
-                if stop_when(self._collect(request)):
+                polled = self._collect(request)
+                if self._stop_satisfied(stop_when, polled):
                     logger.debug("Search %r satisfied early.", query)
+                    candidates = polled  # reuse; avoid re-collecting below
                     break
 
-        candidates = self._collect(request)
+        if candidates is None:
+            candidates = self._collect(request)
         logger.debug("Search %r returned %d file(s).", query, len(candidates))
         return candidates
+
+    @staticmethod
+    def _stop_satisfied(
+        stop_when: "Callable[[list[Candidate]], bool]", candidates: list[Candidate]
+    ) -> bool:
+        """Evaluate the early-stop predicate, never letting it abort the search."""
+        try:
+            return bool(stop_when(candidates))
+        except Exception as exc:  # a bad predicate must not kill the run
+            logger.debug("Early-stop predicate raised (ignored): %s", exc)
+            return False
 
     @staticmethod
     def _collect(request) -> list[Candidate]:

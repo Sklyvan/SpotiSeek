@@ -10,12 +10,17 @@ from spotiseek.models import Track
 @pytest.mark.parametrize(
     "title, expected_suffix",
     [
+        # Remaster qualifiers are stripped (they hurt Soulseek recall).
         ("Bohemian Rhapsody - Remastered 2011", "Bohemian Rhapsody"),
         ("Money - 2011 Remaster", "Money"),
-        ("Imagine - Mono Version", "Imagine"),
+        # feat./featuring segments are stripped.
         ("SICKO MODE (feat. Drake)", "SICKO MODE"),
         ("One Dance (feat. Wizkid & Kyla)", "One Dance"),
         ("Plain Title", "Plain Title"),
+        # Mono/Stereo are KEPT — they can be the master the user wants.
+        ("Imagine - Mono Version", "Imagine - Mono Version"),
+        # "with" is a normal word, not a feature credit -> KEPT.
+        ("Song (Live with Strings)", "Song (Live with Strings)"),
     ],
 )
 def test_search_query_cleanup(title, expected_suffix) -> None:

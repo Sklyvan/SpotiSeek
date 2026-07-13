@@ -18,7 +18,7 @@ from .models import (
     Track,
 )
 from .soulseek.client import SoulseekClient
-from .soulseek.matcher import score_candidates
+from .soulseek.matcher import has_ready_lossless_match, score_candidates
 from .spotify.parser import parse_spotify_url
 from .spotify.provider import fetch_tracks
 from . import tagging
@@ -92,7 +92,19 @@ class Downloader:
 
             async def worker(index: int, track: Track) -> DownloadResult:
                 async with semaphore:
-                    return await self._process_track(client, index, len(tracks), track)
+                    try:
+                        return await self._process_track(
+                            client, index, len(tracks), track
+                        )
+                    except Exception as exc:
+                        # One track's unexpected failure must never abort the run.
+                        logger.warning(
+                            "[%d/%d] %s — unexpected error: %s",
+                            index, len(tracks), track.display, exc,
+                        )
+                        return DownloadResult(
+                            track, DownloadStatus.FAILED, error=str(exc)
+                        )
 
             results = await asyncio.gather(
                 *(worker(i, t) for i, t in enumerate(tracks, start=1))
@@ -107,18 +119,18 @@ class Downloader:
 
         We stop as soon as an acceptable **lossless** candidate with a free
         upload slot is available — that is the ideal outcome, so there is no
-        point waiting out the full search timeout for it.
+        point waiting out the full search timeout for it. Uses a cheap
+        short-circuiting check (not a full ranked scoring pass) so it is safe to
+        call repeatedly while the search is still collecting results.
         """
 
         def predicate(candidates: list[Candidate]) -> bool:
-            ranked = score_candidates(
+            return has_ready_lossless_match(
                 track,
                 candidates,
                 self.config.match_strictness,
-                self.config.min_bitrate,
                 require_extended=require_extended,
             )
-            return any(c.is_lossless and c.has_free_slots for c in ranked[:3])
 
         return predicate
 
