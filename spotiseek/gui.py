@@ -205,6 +205,13 @@ class MainWindow(QMainWindow):
 
         self.extended_check = QCheckBox("Prefer Official Extended Mix")
         form.addRow(self.extended_check)
+        self.longest_check = QCheckBox("Prefer Longest Version (full / extended cut)")
+        self.longest_check.setToolTip(
+            "Pick the longest matching file instead of the one matching Spotify's "
+            "duration — good for getting full/extended cuts that peers don't label "
+            "'Extended Mix'. Shorter previews/radio edits are still rejected."
+        )
+        form.addRow(self.longest_check)
         self.tag_check = QCheckBox("Write Tags and Embed Cover Art")
         self.tag_check.setChecked(True)
         form.addRow(self.tag_check)
@@ -315,6 +322,7 @@ class MainWindow(QMainWindow):
             tag=self.tag_check.isChecked(),
             dry_run=self.dryrun_check.isChecked(),
             extended_mix=self.extended_check.isChecked(),
+            prefer_longest=self.longest_check.isChecked(),
             fallback=self.fallback_check.isChecked(),
         )
         # Fallback proxy base URLs have no GUI field; they come from env/.env.

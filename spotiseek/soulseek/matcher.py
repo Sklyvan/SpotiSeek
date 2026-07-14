@@ -32,6 +32,12 @@ _W_NAME = 0.50
 _W_FORMAT = 0.30
 _W_AVAIL = 0.20
 
+# --prefer-longest: how much a candidate's length sways ranking (the rest stays
+# name/format/availability), and the longest sane duration accepted relative to
+# the Spotify track (guards against whole-album "megamix" files matching loosely).
+_W_LENGTH = 0.30
+_PREFER_LONGEST_MAX_RATIO = 3.0
+
 # Tokens that mark an *alternate/derivative* version — i.e. NOT the official
 # extended mix. A file labelled "(Extended Mix)" that also carries any of these
 # (e.g. "RetroVision Flip [Extended Mix]") is a remix/edit, not the canonical
@@ -68,6 +74,19 @@ def is_extended_mix(name: str) -> bool:
     return "extended" in normalized and "mix" in normalized
 
 
+def _extended_signal(candidate: Candidate) -> bool:
+    """True if the candidate looks like an extended/full version.
+
+    Strict on the filename ('extended' + 'mix'), looser on the containing folder
+    ('extended' alone): batches are often foldered as "… (Extended Mixes)" or
+    "… (Extended Edition)" while the individual files are named plainly
+    (e.g. "11 - The Black Demon.flac").
+    """
+    if is_extended_mix(candidate.basename):
+        return True
+    return "extended" in _normalize(candidate.folder)
+
+
 def _extra_tokens(track: Track, candidate: Candidate) -> set[str]:
     """Tokens in the filename that aren't the artist, title, or common noise.
 
@@ -85,7 +104,7 @@ def _extra_tokens(track: Track, candidate: Candidate) -> set[str]:
 
 def is_official_extended_mix(track: Track, candidate: Candidate) -> bool:
     """True if the candidate is an Extended Mix with no alternate-version markers."""
-    if not is_extended_mix(candidate.basename):
+    if not _extended_signal(candidate):
         return False
     return not (_extra_tokens(track, candidate) & _ALT_VERSION_KEYWORDS)
 
@@ -134,11 +153,24 @@ def _availability_score(candidate: Candidate) -> float:
     return max(0.0, min(score, 1.0))
 
 
-def _passes_duration(track: Track, candidate: Candidate, tolerance: int | None) -> bool:
+def _passes_duration(
+    track: Track,
+    candidate: Candidate,
+    tolerance: int | None,
+    prefer_longest: bool = False,
+) -> bool:
     if tolerance is None:
         return True
     if not track.duration_s or not candidate.duration:
         return True  # cannot compare -> do not reject
+    if prefer_longest:
+        # Keep out shorter previews/radio edits, but allow longer full/extended
+        # versions — up to a sane multiple so a whole-album mix isn't accepted.
+        return (
+            track.duration_s - tolerance
+            <= candidate.duration
+            <= track.duration_s * _PREFER_LONGEST_MAX_RATIO
+        )
     return abs(candidate.duration - track.duration_s) <= tolerance
 
 
@@ -147,6 +179,7 @@ def has_ready_lossless_match(
     candidates: list[Candidate],
     strictness: MatchStrictness = MatchStrictness.BALANCED,
     require_extended: bool = False,
+    prefer_longest: bool = False,
 ) -> bool:
     """Cheap early-stop check for searching: is a lossless candidate with a free
     upload slot already available and matching?
@@ -164,7 +197,7 @@ def has_ready_lossless_match(
             continue
         if _name_score(track, candidate) < name_threshold:
             continue
-        if _passes_duration(track, candidate, tolerance):
+        if _passes_duration(track, candidate, tolerance, prefer_longest):
             return True
     return False
 
@@ -175,12 +208,18 @@ def score_candidates(
     strictness: MatchStrictness = MatchStrictness.BALANCED,
     min_bitrate: int | None = None,
     require_extended: bool = False,
+    prefer_longest: bool = False,
 ) -> list[Candidate]:
     """Return acceptable candidates ranked best-first, scores populated.
 
     When ``require_extended`` is set, only files that look like an Extended Mix
     are accepted, and the duration filter is skipped (extended mixes are longer
     than the Spotify-reported duration of the standard track).
+
+    When ``prefer_longest`` is set, longer versions are accepted (only clearly
+    shorter previews/edits are rejected) and a length term sways the ranking
+    toward the longest good match — useful for grabbing full/extended versions
+    that peers don't explicitly label "Extended Mix".
     """
     name_threshold = _NAME_THRESHOLD[strictness]
     tolerance = None if require_extended else _DURATION_TOLERANCE_S[strictness]
@@ -192,7 +231,7 @@ def score_candidates(
 
         extras: set[str] = set()
         if require_extended:
-            if not is_extended_mix(candidate.basename):
+            if not _extended_signal(candidate):
                 continue
             extras = _extra_tokens(track, candidate)
             # Reject remixes/edits/etc. — favour the official extended mix.
@@ -210,7 +249,7 @@ def score_candidates(
         name = _name_score(track, candidate)
         if name < name_threshold:
             continue
-        if not _passes_duration(track, candidate, tolerance):
+        if not _passes_duration(track, candidate, tolerance, prefer_longest):
             continue
 
         fmt = _format_score(candidate)
@@ -223,5 +262,20 @@ def score_candidates(
         candidate.score = round(combined * 100, 3)
         ranked.append(candidate)
 
+    if prefer_longest:
+        _apply_length_preference(ranked)
+
     ranked.sort(key=lambda c: c.score, reverse=True)
     return ranked
+
+
+def _apply_length_preference(ranked: list[Candidate]) -> None:
+    """Blend a length term into each candidate's score (longest = biggest boost)."""
+    max_dur = max((c.duration or 0) for c in ranked) if ranked else 0
+    if max_dur <= 0:
+        return  # no usable durations -> leave scores untouched
+    for candidate in ranked:
+        length_score = (candidate.duration or 0) / max_dur
+        base = candidate.score / 100.0
+        blended = (1.0 - _W_LENGTH) * base + _W_LENGTH * length_score
+        candidate.score = round(blended * 100, 3)

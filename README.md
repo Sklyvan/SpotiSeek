@@ -122,6 +122,9 @@ spotiseek download "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
 # 🎚️ Prefer Extended Mixes (falls back to the standard version if none found)
 spotiseek download "https://open.spotify.com/track/6RN5TdlxfilLjMcy1tJlV5" --extended-mix
 
+# 📏 Grab the longest/full version even when peers don't label it "Extended Mix"
+spotiseek download "<url>" --prefer-longest
+
 # 🛟 Fall back to lossless streaming sources when Soulseek can't find a track
 spotiseek download "<url>" --fallback
 
@@ -139,6 +142,7 @@ spotiseek info "<url>"
 | `-o, --output DIR` | Where to save files | your Downloads folder |
 | `-p, --parallel N` | Concurrent downloads (`1` = sequential) | `1` |
 | `--extended-mix` | Prefer the official *(Extended Mix)*; fall back to standard | off |
+| `--prefer-longest` | Pick the longest matching version (full/extended cut) over the one matching Spotify's duration | off |
 | `--match {strict\|balanced\|lenient}` | How strictly to match results | `balanced` |
 | `--search-timeout SEC` | How long to gather Soulseek results per track | `15` |
 | `--min-bitrate N` | Reject lossy files below this bitrate (kbps) | — |

@@ -21,7 +21,7 @@ from .models import (
 from .soulseek.client import SoulseekClient
 from .soulseek.matcher import has_ready_lossless_match, score_candidates
 from .spotify.parser import parse_spotify_url
-from .spotify.provider import fetch_tracks
+from .spotify.provider import enrich_artwork, fetch_tracks
 from . import tagging
 
 logger = logging.getLogger(__name__)
@@ -170,6 +170,7 @@ class Downloader:
                 candidates,
                 self.config.match_strictness,
                 require_extended=require_extended,
+                prefer_longest=self.config.prefer_longest,
             )
 
         return predicate
@@ -220,7 +221,7 @@ class Downloader:
 
         final_path = self._place_file(outcome.path, track, outcome.extension)
         if self.config.tag:
-            await asyncio.to_thread(tagging.tag_file, final_path, track, True)
+            await self._tag(final_path, track)
         logger.info(
             "%s — saved via %s fallback to %s", prefix, outcome.provider, final_path
         )
@@ -279,6 +280,7 @@ class Downloader:
             self.config.match_strictness,
             self.config.min_bitrate,
             require_extended=True,
+            prefer_longest=self.config.prefer_longest,
         )
         if not ranked:
             logger.info(
@@ -325,6 +327,7 @@ class Downloader:
             candidates,
             self.config.match_strictness,
             self.config.min_bitrate,
+            prefer_longest=self.config.prefer_longest,
         )
         if not ranked:
             logger.warning(
@@ -383,9 +386,7 @@ class Downloader:
                     if extended
                     else track
                 )
-                # Tagging does blocking I/O (cover download + mutagen writes);
-                # run it off the event loop so parallel downloads aren't stalled.
-                await asyncio.to_thread(tagging.tag_file, final_path, tag_track, True)
+                await self._tag(final_path, tag_track)
             logger.info("%s — saved to %s", prefix, final_path)
             return DownloadResult(
                 track,
@@ -420,6 +421,19 @@ class Downloader:
         if os.path.abspath(local_path) != os.path.abspath(dest):
             shutil.move(local_path, dest)
         return dest
+
+    async def _tag(self, path: str, track: Track) -> None:
+        """Tag a finished file, enriching missing cover art first.
+
+        Both blocking steps (an embed fetch for artwork + the cover download and
+        mutagen writes) run off the event loop so parallel downloads aren't
+        stalled.
+        """
+        if self.config.tag and not track.cover_url and track.spotify_id:
+            # Playlist tracks arrive without artwork; fetch it from the track's
+            # own public embed page on demand.
+            await asyncio.to_thread(enrich_artwork, track)
+        await asyncio.to_thread(tagging.tag_file, path, track, True)
 
     def _cleanup_incoming(self) -> None:
         """Remove the incoming scratch directory if it is empty."""

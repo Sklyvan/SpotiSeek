@@ -62,6 +62,12 @@ def main() -> None:
     "extended mixes are named '... (Extended Mix)'.",
 )
 @click.option(
+    "--prefer-longest", is_flag=True,
+    help="Prefer the longest matching version (e.g. the full/extended cut) "
+    "instead of the one matching Spotify's duration. Shorter previews/radio "
+    "edits are still rejected; whole-album mixes are guarded against.",
+)
+@click.option(
     "--dry-run", is_flag=True,
     help="Search and match only; report picks without downloading.",
 )
@@ -89,6 +95,7 @@ def download(
     min_bitrate: int | None,
     no_tag: bool,
     extended_mix: bool,
+    prefer_longest: bool,
     dry_run: bool,
     fallback: bool,
     fallback_providers: str | None,
@@ -113,6 +120,7 @@ def download(
         tag=not no_tag,
         dry_run=dry_run,
         extended_mix=extended_mix,
+        prefer_longest=prefer_longest,
         fallback=fallback,
         fallback_providers=providers,
         soulseek_username=slsk_user,

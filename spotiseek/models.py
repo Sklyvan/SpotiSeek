@@ -69,10 +69,47 @@ _REMASTER_RE = re.compile(
 )
 
 
+# Version/edit qualifiers Spotify appends, e.g. "Song - Radio Edit",
+# "Song (Mixed)", "Song (Original Mix)". Soulseek matches a query by requiring
+# EVERY word to appear in a file's name, so leaving these in wrecks recall — most
+# fatally, "... Radio Edit extended mix" can never match a file named
+# "(Extended Mix)". They are stripped from the *search query only*; the real
+# title still drives the filename, tags and match validation. Deliberately NOT
+# listed: remix / live / mono / stereo / acoustic / instrumental — those denote
+# genuinely different recordings a user may specifically want.
+_VERSION_WORDS = frozenset({
+    "radio", "edit", "edits", "edited", "extended", "original", "album",
+    "single", "club", "version", "cut", "mix", "mixed",
+})
+# A trailing "(...)"/"[...]" segment, or a trailing " - ..." segment.
+_TRAIL_PAREN_RE = re.compile(r"\s*[\(\[]([^)\]]*)[\)\]]\s*$")
+_TRAIL_DASH_RE = re.compile(r"\s[-–—]\s+([^-–—]+?)\s*$")
+
+
+def _is_version_segment(segment: str) -> bool:
+    """True if every word in the segment is a version/edit marker (or a number)."""
+    words = re.findall(r"[a-z0-9]+", segment.lower())
+    return bool(words) and all(w in _VERSION_WORDS or w.isdigit() for w in words)
+
+
+def _strip_version_qualifiers(title: str) -> str:
+    """Drop trailing version/edit markers ('- Radio Edit', '(Mixed)') for search."""
+    changed = True
+    while changed:
+        changed = False
+        for pattern in (_TRAIL_PAREN_RE, _TRAIL_DASH_RE):
+            match = pattern.search(title)
+            if match and _is_version_segment(match.group(1)):
+                title = title[: match.start()].rstrip()
+                changed = True
+    return title
+
+
 def _search_title(title: str) -> str:
-    """Strip featured-artist and remaster noise to improve Soulseek recall."""
+    """Strip featured-artist, remaster and version noise to improve recall."""
     cleaned = _FEAT_RE.sub("", title or "")
     cleaned = _REMASTER_RE.sub("", cleaned)
+    cleaned = _strip_version_qualifiers(cleaned)
     cleaned = _clean(cleaned)
     return cleaned or _clean(title)
 
@@ -141,6 +178,12 @@ class Candidate:
     def basename(self) -> str:
         # Soulseek paths use backslashes (Windows peers) or forward slashes.
         return re.split(r"[\\/]", self.filename)[-1]
+
+    @property
+    def folder(self) -> str:
+        """The containing folder name (last path segment before the file)."""
+        parts = [p for p in re.split(r"[\\/]", self.filename) if p]
+        return parts[-2] if len(parts) >= 2 else ""
 
     @property
     def is_lossless(self) -> bool:

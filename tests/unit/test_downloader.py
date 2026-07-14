@@ -96,6 +96,8 @@ def patched(monkeypatch, sample_track):
     monkeypatch.setattr(dl, "SoulseekClient", FakeClient)
     monkeypatch.setattr(dl, "fetch_tracks", fake_fetch)
     monkeypatch.setattr(dl.tagging, "tag_file", lambda *a, **k: tag_calls.append(a))
+    # Artwork enrichment hits the network; stub it out for offline unit tests.
+    monkeypatch.setattr(dl, "enrich_artwork", lambda track: False)
 
     return type("Ctl", (), {"FakeClient": FakeClient, "tag_calls": tag_calls, "state": state})
 

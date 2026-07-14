@@ -217,3 +217,77 @@ def test_free_slot_preferred_over_queued(sample_track) -> None:
     ]
     ranked = score_candidates(sample_track, cands, MatchStrictness.BALANCED)
     assert ranked[0].username == "free"
+
+
+# --------------------------------------------------------------------------- #
+# (a) Folder-path-aware extended detection
+# --------------------------------------------------------------------------- #
+def test_extended_signal_from_folder(sample_track) -> None:
+    # A plainly-named file inside an "(Extended Mixes)" folder still counts as
+    # extended, even though the filename alone doesn't say so.
+    cands = [
+        make_candidate(
+            username="folder-ext",
+            filename=r"VA - Hardstyle (Extended Mixes)\01 - One More Time.flac",
+            duration=380,
+        ),
+    ]
+    ranked = score_candidates(sample_track, cands, require_extended=True)
+    assert len(ranked) == 1
+    assert is_official_extended_mix(sample_track, cands[0])
+
+
+def test_extended_signal_filename_still_works(sample_track) -> None:
+    cand = make_candidate(
+        filename=r"Music\Daft Punk - One More Time (Extended Mix).flac", duration=380
+    )
+    assert is_official_extended_mix(sample_track, cand)
+
+
+def test_plain_file_in_plain_folder_not_extended(sample_track) -> None:
+    cand = make_candidate(
+        filename=r"Music\Daft Punk\One More Time.flac", duration=320
+    )
+    assert not is_official_extended_mix(sample_track, cand)
+
+
+# --------------------------------------------------------------------------- #
+# (b) --prefer-longest
+# --------------------------------------------------------------------------- #
+def test_prefer_longest_ranks_longest_first(sample_track) -> None:
+    # Same track, three lengths; all lossless. Longest should rank first.
+    cands = [
+        make_candidate(username="radio", filename="Daft Punk - One More Time.flac",
+                       duration=320),
+        make_candidate(username="extended", filename="Daft Punk - One More Time.flac",
+                       duration=470),
+        make_candidate(username="mid", filename="Daft Punk - One More Time.flac",
+                       duration=400),
+    ]
+    ranked = score_candidates(sample_track, cands, prefer_longest=True)
+    assert ranked[0].username == "extended"
+
+
+def test_prefer_longest_allows_longer_than_spotify(sample_track) -> None:
+    # A 470s full version is >15s longer than Spotify's 320s; normally the
+    # balanced duration filter would reject it, but prefer_longest keeps it.
+    cands = [
+        make_candidate(filename="Daft Punk - One More Time.flac", duration=470),
+    ]
+    assert score_candidates(sample_track, cands) == []  # rejected normally
+    assert len(score_candidates(sample_track, cands, prefer_longest=True)) == 1
+
+
+def test_prefer_longest_still_rejects_short_preview(sample_track) -> None:
+    cands = [
+        make_candidate(filename="Daft Punk - One More Time.flac", duration=30),
+    ]
+    assert score_candidates(sample_track, cands, prefer_longest=True) == []
+
+
+def test_prefer_longest_rejects_whole_album_mix(sample_track) -> None:
+    # A 60-minute continuous mix is way beyond the sane ratio -> rejected.
+    cands = [
+        make_candidate(filename="Daft Punk - One More Time.flac", duration=3600),
+    ]
+    assert score_candidates(sample_track, cands, prefer_longest=True) == []

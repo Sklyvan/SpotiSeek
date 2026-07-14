@@ -1,0 +1,196 @@
+{
+  "entityUniqueId": "SPOTIFY_SONG::4cOdK2wGLETKBW3PvgPWqT",
+  "userCountry": "ES",
+  "pageUrl": "https://song.link/s/4cOdK2wGLETKBW3PvgPWqT",
+  "entitiesByUniqueId": {
+    "AMAZON_SONG::B0DZTSF3YS": {
+      "id": "B0DZTSF3YS",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://m.media-amazon.com/images/I/41MNDLGa88L.jpg",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "amazon",
+      "platforms": [
+        "amazonMusic",
+        "amazonStore"
+      ]
+    },
+    "AUDIUS_SONG::4k3v4": {
+      "id": "4k3v4",
+      "type": "song",
+      "title": "Rick Astley - Never Gonna Give You Up",
+      "artistName": "a guy from earth",
+      "thumbnailUrl": "https://audius-creator-3.theblueprint.xyz/content/QmZjykXtUpS64aKFYpm7LVGKg8NoGMbZt57dATs5NEKRca/480x480.jpg",
+      "thumbnailWidth": 480,
+      "thumbnailHeight": 480,
+      "apiProvider": "audius",
+      "platforms": [
+        "audius"
+      ]
+    },
+    "ANGHAMI_SONG::106295734": {
+      "id": "106295734",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://artwork.anghcdn.co/cover/172421286/320",
+      "thumbnailWidth": 1024,
+      "thumbnailHeight": 1024,
+      "apiProvider": "anghami",
+      "platforms": [
+        "anghami"
+      ]
+    },
+    "BOOMPLAY_SONG::3569876": {
+      "id": "3569876",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://source.boomplaymusic.com/group10/M00/06/25/adc5f04bb0164fe88ea8a048ffdc1344_464_464.jpg",
+      "thumbnailWidth": 464,
+      "thumbnailHeight": 464,
+      "apiProvider": "boomplay",
+      "platforms": [
+        "boomplay"
+      ]
+    },
+    "DEEZER_SONG::781592622": {
+      "id": "781592622",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://cdns-images.dzcdn.net/images/cover/fe779e632872f7c6e9f1c84ffa7afc33/500x500-000000-80-0-0.jpg",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "deezer",
+      "platforms": [
+        "deezer"
+      ]
+    },
+    "NAPSTER_SONG::tra.321869367": {
+      "id": "tra.321869367",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://direct.rhapsody.com/imageserver/images/alb.321869210/385x385.jpeg",
+      "thumbnailWidth": 385,
+      "thumbnailHeight": 385,
+      "apiProvider": "napster",
+      "platforms": [
+        "napster"
+      ]
+    },
+    "PANDORA_SONG::TR:8526": {
+      "id": "TR:8526",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://content-images.p-cdn.com/images/5e/4f/15/b9/92b5451791f792ed0ebe17be/_500W_500H.jpg",
+      "thumbnailWidth": 500,
+      "thumbnailHeight": 500,
+      "apiProvider": "pandora",
+      "platforms": [
+        "pandora"
+      ]
+    },
+    "SPOTIFY_SONG::4cOdK2wGLETKBW3PvgPWqT": {
+      "id": "4cOdK2wGLETKBW3PvgPWqT",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://i.scdn.co/image/ab67616d0000b273baf89eb11ec7c657805d2da0",
+      "thumbnailWidth": 640,
+      "thumbnailHeight": 640,
+      "apiProvider": "spotify",
+      "platforms": [
+        "spotify"
+      ]
+    },
+    "TIDAL_SONG::491206012": {
+      "id": "491206012",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://resources.tidal.com/images/3b1ef659/ba34/400d/a47c/0980ca6bfdfb/640x640.jpg",
+      "thumbnailWidth": 640,
+      "thumbnailHeight": 640,
+      "apiProvider": "tidal",
+      "platforms": [
+        "tidal"
+      ]
+    },
+    "YANDEX_SONG::609676": {
+      "id": "609676",
+      "type": "song",
+      "title": "Never Gonna Give You Up",
+      "artistName": "Rick Astley",
+      "thumbnailUrl": "https://avatars.yandex.net/get-music-content/18132539/5ef3a5a4.a.14599232-4/600x600",
+      "thumbnailWidth": 600,
+      "thumbnailHeight": 600,
+      "apiProvider": "yandex",
+      "platforms": [
+        "yandex"
+      ]
+    }
+  },
+  "linksByPlatform": {
+    "amazonMusic": {
+      "country": "ES",
+      "url": "https://music.amazon.com/albums/B0DZTQLXGX?trackAsin=B0DZTSF3YS",
+      "entityUniqueId": "AMAZON_SONG::B0DZTSF3YS"
+    },
+    "amazonStore": {
+      "country": "US",
+      "url": "https://amazon.com/dp/B0DZTSF3YS",
+      "entityUniqueId": "AMAZON_SONG::B0DZTSF3YS"
+    },
+    "audius": {
+      "country": "ES",
+      "url": "https://audius.co/tracks/4k3v4",
+      "entityUniqueId": "AUDIUS_SONG::4k3v4"
+    },
+    "anghami": {
+      "country": "ES",
+      "url": "https://play.anghami.com/song/106295734?refer=linktree",
+      "entityUniqueId": "ANGHAMI_SONG::106295734"
+    },
+    "boomplay": {
+      "country": "ES",
+      "url": "https://www.boomplay.com/songs/3569876",
+      "entityUniqueId": "BOOMPLAY_SONG::3569876"
+    },
+    "deezer": {
+      "country": "ES",
+      "url": "https://www.deezer.com/track/781592622",
+      "entityUniqueId": "DEEZER_SONG::781592622"
+    },
+    "napster": {
+      "country": "ES",
+      "url": "https://play.napster.com/track/tra.321869367",
+      "entityUniqueId": "NAPSTER_SONG::tra.321869367"
+    },
+    "pandora": {
+      "country": "US",
+      "url": "https://www.pandora.com/TR:8526",
+      "entityUniqueId": "PANDORA_SONG::TR:8526"
+    },
+    "tidal": {
+      "country": "ES",
+      "url": "https://listen.tidal.com/track/491206012",
+      "entityUniqueId": "TIDAL_SONG::491206012"
+    },
+    "yandex": {
+      "country": "RU",
+      "url": "https://music.yandex.ru/track/609676",
+      "entityUniqueId": "YANDEX_SONG::609676"
+    },
+    "spotify": {
+      "country": "ES",
+      "url": "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+      "nativeAppUriDesktop": "spotify:track:4cOdK2wGLETKBW3PvgPWqT",
+      "entityUniqueId": "SPOTIFY_SONG::4cOdK2wGLETKBW3PvgPWqT"
+    }
+  }
+}

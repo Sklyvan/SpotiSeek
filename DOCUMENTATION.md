@@ -127,7 +127,14 @@ directory before being moved to their final name.
 
 - 🔍 **`search(query, timeout)`** issues one search and collects results for
   `timeout` seconds (Soulseek search is push-based: peers reply asynchronously,
-  so we wait a fixed window). Each shared file becomes a `Candidate`. File
+  so we wait a fixed window). The query is `Track.search_query` — `"<artist>
+  <title>"` with the title stripped of featured-artist, remaster **and
+  version/edit qualifiers** (`- Radio Edit`, `(Mixed)`, `(Original Mix)`, …).
+  This matters because Soulseek AND-matches every query word against a file's
+  name, so those qualifiers otherwise exclude the right files (and make an
+  `"… extended mix"` search impossible). `remix`/`live`/`mono`/`acoustic` are
+  kept — they are genuinely different recordings. Each shared file becomes a
+  `Candidate`. File
   attributes are decoded from the protocol's integer keys
   (`BITRATE=0, DURATION=1, VBR=2, SAMPLE_RATE=4, BIT_DEPTH=5`) and mapped
   defensively — peers vary in what they report.
@@ -186,12 +193,14 @@ When the user passes `--extended-mix` (`Config.extended_mix`), the downloader
 runs an **extended-first** strategy for each track (see §6):
 
 1. It searches Soulseek with `"<artist> <title> extended mix"`.
-2. It matches with `require_extended=True`, which keeps only candidates whose
-   filename `is_extended_mix(...)` — i.e. the normalized name contains **both**
-   `"extended"` and `"mix"` (so a "Radio Mix" or a bare "Extended Version" does
-   not qualify). The duration filter is **disabled** for this pass, because an
-   extended mix is legitimately longer than the standard track's Spotify
-   duration and would otherwise be rejected.
+2. It matches with `require_extended=True`, which keeps only candidates that give
+   an **extended signal** (`_extended_signal`): either the filename
+   `is_extended_mix(...)` — the normalized name contains **both** `"extended"`
+   and `"mix"` — **or** the containing *folder* contains `"extended"`. The folder
+   check catches batches shared as "… (Extended Mixes)" / "… (Extended Edition)"
+   whose individual files are named plainly (e.g. `11 - The Black Demon.flac`).
+   The duration filter is **disabled** for this pass, because an extended mix is
+   legitimately longer than the standard track's Spotify duration.
 3. 🎯 It favours the **official** extended mix. `is_official_extended_mix(...)`
    rejects any extended-labelled file that also carries an alternate-version
    marker (`_ALT_VERSION_KEYWORDS`: remix, flip, bootleg, VIP, mashup, edit,
@@ -206,6 +215,24 @@ runs an **extended-first** strategy for each track (see §6):
 5. If none is found (nothing extended, or only remixes/edits), SpotiSeek logs
    *"no Extended Mix found; downloading the standard version instead."* and
    continues with the normal flow.
+
+### 4.4 📏 Prefer-longest mode
+
+`--prefer-longest` (`Config.prefer_longest`) is for versions peers don't bother
+labelling "Extended Mix" — common in dance/hardstyle, where the full cut ships as
+a plain album track. It changes the matcher in two ways (both search passes):
+
+- **Duration filter** (`_passes_duration`): instead of requiring the candidate to
+  be *close to* Spotify's duration, it accepts anything from `duration − tolerance`
+  up to `duration × 3` — keeping out shorter previews/radio edits while allowing
+  longer full/extended cuts, and guarding against a whole-album "megamix" file
+  matching loosely.
+- **Ranking** (`_apply_length_preference`): the final score is blended
+  `0.7·base + 0.3·(duration / longest_in_set)`, so among good matches the longest
+  wins without letting a poorly-named long file beat a clean short one.
+
+It composes with the other modes and, like them, is surfaced on both the CLI and
+the GUI.
 
 ---
 
@@ -223,9 +250,12 @@ using mutagen, dispatched by file extension:
 | WAV | ID3 chunk | `APIC` |
 | AIFF/AIF/AIFC | ID3 chunk | `APIC` |
 
-🖼️ Cover art is downloaded once from `track.cover_url`. Only fields SpotiSeek
-actually knows are written, so existing tags on the file (e.g. an album name the
-peer already set, when we resolved a single-track URL that lacks it) are
+🖼️ Cover art is downloaded once from `track.cover_url`. **Playlist embeds carry
+no per-track artwork**, so before tagging such a track the downloader calls
+`provider.enrich_artwork(track)`, which fetches the track's *own* public embed
+page (credential-free) to fill in the cover URL and release year on demand.
+Only fields SpotiSeek actually knows are written, so existing tags on the file
+(e.g. an album name the peer already set — the embed path can't supply one) are
 preserved. When an Extended Mix was downloaded, the title tag is written as
 `"<Title> (Extended Mix)"` to stay consistent with the filename. Tagging is
 **best-effort**: any failure is logged and the download is still counted as

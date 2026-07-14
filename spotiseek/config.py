@@ -101,6 +101,7 @@ class Config:
     tag: bool = True
     dry_run: bool = False
     extended_mix: bool = False
+    prefer_longest: bool = False
 
     # Lossless fallback (opt-in): fetch from streaming-service proxies via Odesli
     # when Soulseek can't deliver a track.
@@ -133,6 +134,7 @@ class Config:
         tag: bool | None = None,
         dry_run: bool | None = None,
         extended_mix: bool | None = None,
+        prefer_longest: bool | None = None,
         fallback: bool | None = None,
         fallback_providers: list[str] | None = None,
         soulseek_username: str | None = None,
@@ -175,6 +177,8 @@ class Config:
             cfg.dry_run = dry_run
         if extended_mix is not None:
             cfg.extended_mix = extended_mix
+        if prefer_longest is not None:
+            cfg.prefer_longest = prefer_longest
         if fallback is not None:
             cfg.fallback = fallback
         if fallback_providers is not None:

@@ -21,6 +21,23 @@ from spotiseek.models import Track
         ("Imagine - Mono Version", "Imagine - Mono Version"),
         # "with" is a normal word, not a feature credit -> KEPT.
         ("Song (Live with Strings)", "Song (Live with Strings)"),
+        # Version/edit qualifiers are stripped: Soulseek AND-matches every query
+        # word, so "Radio Edit"/"Mixed" exclude the files we actually want and
+        # make an "extended mix" search impossible.
+        ("Kill Me - Radio Edit", "Kill Me"),
+        ("Blood, Sweat & Tears - Radio Edit", "Blood, Sweat & Tears"),
+        ("River of Souls (Mixed)", "River of Souls"),
+        ("Brutal 3.0 (Mixed)", "Brutal 3.0"),
+        ("Strobe - Original Mix", "Strobe"),
+        ("Song (Extended Mix)", "Song"),
+        ("Track - Radio Version", "Track"),
+        # remix / live are genuinely different recordings -> KEPT.
+        ("Levels (Skrillex Remix)", "Levels (Skrillex Remix)"),
+        ("Song - Live", "Song - Live"),
+        # A non-version parenthetical subtitle is KEPT (conservative).
+        ("Funfair (The Official 2015 Anthem)", "Funfair (The Official 2015 Anthem)"),
+        # Multiple trailing qualifiers are all stripped.
+        ("Anthem (Mixed) - Radio Edit", "Anthem"),
     ],
 )
 def test_search_query_cleanup(title, expected_suffix) -> None:

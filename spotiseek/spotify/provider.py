@@ -54,3 +54,27 @@ def fetch_tracks(
     tracks = embed.get_tracks(kind, spotify_id)
     logger.info("Metadata source: public embed (%d tracks)", len(tracks))
     return tracks, MetadataSource.EMBED
+
+
+def enrich_artwork(track: Track) -> bool:
+    """Fill a track's missing cover art (and year) from its own public embed.
+
+    Playlist embeds carry no per-track artwork, so playlist downloads would embed
+    no cover. Each track still has a ``spotify_id``, and the single-track embed
+    page *does* expose cover art + release date — so we fetch it on demand. This
+    is credential-free and best-effort: it mutates ``track`` in place and returns
+    whether a cover URL was found. Never raises.
+    """
+    if track.cover_url or not track.spotify_id:
+        return bool(track.cover_url)
+    try:
+        detail = EmbedProvider().get_tracks(SpotifyKind.TRACK, track.spotify_id)
+    except Exception as exc:  # best-effort enrichment must never break a download
+        logger.debug("Artwork enrichment failed for %s: %s", track.spotify_id, exc)
+        return False
+    if detail:
+        source = detail[0]
+        track.cover_url = source.cover_url
+        if not track.release_date:
+            track.release_date = source.release_date
+    return bool(track.cover_url)
