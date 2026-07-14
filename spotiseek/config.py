@@ -18,6 +18,17 @@ from .models import MatchStrictness
 DEFAULT_ENV_FILE = ".env"
 DEFAULT_SEARCH_TIMEOUT = 15.0
 
+# Order in which the lossless fallback tries streaming-service proxies.
+DEFAULT_FALLBACK_PROVIDERS = ["tidal", "deezer", "amazon", "qobuz"]
+# Proxy base URLs are intentionally empty: these third-party services rotate and
+# go offline constantly, so there is no reliable default. Point the matching
+# SPOTISEEK_<PROVIDER>_API_URL env var at a currently-working instance to enable
+# a provider; unconfigured providers are skipped.
+DEFAULT_TIDAL_API_URL = ""
+DEFAULT_QOBUZ_API_URL = ""
+DEFAULT_AMAZON_API_URL = ""
+DEFAULT_DEEZER_API_URL = ""
+
 
 def default_download_dir() -> Path:
     """Return the operating system's Downloads folder.
@@ -91,6 +102,17 @@ class Config:
     dry_run: bool = False
     extended_mix: bool = False
 
+    # Lossless fallback (opt-in): fetch from streaming-service proxies via Odesli
+    # when Soulseek can't deliver a track.
+    fallback: bool = False
+    fallback_providers: list[str] = field(
+        default_factory=lambda: list(DEFAULT_FALLBACK_PROVIDERS)
+    )
+    tidal_api_url: str = DEFAULT_TIDAL_API_URL
+    qobuz_api_url: str = DEFAULT_QOBUZ_API_URL
+    amazon_api_url: str = DEFAULT_AMAZON_API_URL
+    deezer_api_url: str = DEFAULT_DEEZER_API_URL
+
     @property
     def has_spotify_credentials(self) -> bool:
         return bool(self.spotify_client_id and self.spotify_client_secret)
@@ -111,6 +133,8 @@ class Config:
         tag: bool | None = None,
         dry_run: bool | None = None,
         extended_mix: bool | None = None,
+        fallback: bool | None = None,
+        fallback_providers: list[str] | None = None,
         soulseek_username: str | None = None,
         soulseek_password: str | None = None,
         env_file: str | os.PathLike[str] | None = None,
@@ -129,6 +153,10 @@ class Config:
             soulseek_password=(
                 soulseek_password or _env("SOULSEEK_PASSWORD") or ""
             ),
+            tidal_api_url=_env("SPOTISEEK_TIDAL_API_URL") or DEFAULT_TIDAL_API_URL,
+            qobuz_api_url=_env("SPOTISEEK_QOBUZ_API_URL") or DEFAULT_QOBUZ_API_URL,
+            amazon_api_url=_env("SPOTISEEK_AMAZON_API_URL") or DEFAULT_AMAZON_API_URL,
+            deezer_api_url=_env("SPOTISEEK_DEEZER_API_URL") or DEFAULT_DEEZER_API_URL,
         )
 
         if output_dir is not None:
@@ -147,5 +175,9 @@ class Config:
             cfg.dry_run = dry_run
         if extended_mix is not None:
             cfg.extended_mix = extended_mix
+        if fallback is not None:
+            cfg.fallback = fallback
+        if fallback_providers is not None:
+            cfg.fallback_providers = fallback_providers
 
         return cfg

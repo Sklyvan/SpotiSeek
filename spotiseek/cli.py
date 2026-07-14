@@ -65,6 +65,17 @@ def main() -> None:
     "--dry-run", is_flag=True,
     help="Search and match only; report picks without downloading.",
 )
+@click.option(
+    "--fallback", is_flag=True,
+    help="When Soulseek can't deliver a track, fall back to fetching lossless "
+    "audio from streaming-service proxies (Tidal/Deezer/Amazon/Qobuz via Odesli). "
+    "Requires SPOTISEEK_<PROVIDER>_API_URL to point at a working proxy.",
+)
+@click.option(
+    "--fallback-providers", default=None,
+    help="Comma-separated provider order for --fallback "
+    "(default: tidal,deezer,amazon,qobuz).",
+)
 @click.option("--slsk-user", default=None, help="Override Soulseek username.")
 @click.option("--slsk-pass", default=None, help="Override Soulseek password.")
 @click.option("--log-level", type=_LEVEL_CHOICES, default=None, help="Set log level.")
@@ -79,6 +90,8 @@ def download(
     no_tag: bool,
     extended_mix: bool,
     dry_run: bool,
+    fallback: bool,
+    fallback_providers: str | None,
     slsk_user: str | None,
     slsk_pass: str | None,
     log_level: str | None,
@@ -86,6 +99,11 @@ def download(
 ) -> None:
     """Download every track in the given Spotify URL from Soulseek."""
     configure_logging(log_level, verbose)
+    providers = (
+        [p.strip() for p in fallback_providers.split(",") if p.strip()]
+        if fallback_providers
+        else None
+    )
     config = Config.load(
         output_dir=output,
         parallel=parallel,
@@ -95,6 +113,8 @@ def download(
         tag=not no_tag,
         dry_run=dry_run,
         extended_mix=extended_mix,
+        fallback=fallback,
+        fallback_providers=providers,
         soulseek_username=slsk_user,
         soulseek_password=slsk_pass,
     )

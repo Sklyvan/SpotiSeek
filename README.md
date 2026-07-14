@@ -122,6 +122,9 @@ spotiseek download "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
 # 🎚️ Prefer Extended Mixes (falls back to the standard version if none found)
 spotiseek download "https://open.spotify.com/track/6RN5TdlxfilLjMcy1tJlV5" --extended-mix
 
+# 🛟 Fall back to lossless streaming sources when Soulseek can't find a track
+spotiseek download "<url>" --fallback
+
 # 👀 See what would be downloaded, without downloading (great for checking matches)
 spotiseek download "<url>" --dry-run
 
@@ -141,6 +144,8 @@ spotiseek info "<url>"
 | `--min-bitrate N` | Reject lossy files below this bitrate (kbps) | — |
 | `--no-tag` | Don't write tags / embed art | off |
 | `--dry-run` | Search & match only; don't download | off |
+| `--fallback` | If Soulseek fails, fetch lossless audio from streaming-service proxies ([see below](#-lossless-fallback---fallback)) | off |
+| `--fallback-providers LIST` | Comma-separated provider order for `--fallback` | `tidal,deezer,amazon,qobuz` |
 | `--slsk-user`, `--slsk-pass` | Override Soulseek credentials | from env |
 | `--log-level {DEBUG\|INFO\|WARNING\|ERROR}` | Logging verbosity | `INFO` |
 | `-v` | Shortcut for `DEBUG` logging | — |
@@ -153,6 +158,36 @@ the output folder, that track is skipped. ⏭️
 
 `download` exits non-zero if there were tracks to fetch but **none** succeeded,
 which makes it easy to use in scripts.
+
+### 🛟 Lossless fallback (`--fallback`)
+
+Soulseek is the primary source. When it can't deliver a track (no results, no
+acceptable match, or every transfer fails), `--fallback` resolves the track to
+its counterpart on other streaming platforms via the free public
+[Odesli / song.link](https://odesli.co) API, then downloads a **lossless FLAC**
+through a per-provider proxy — the same approach [SpotiFLAC](https://github.com/spotbye/SpotiFLAC)
+uses. Providers are tried in order (default `tidal,deezer,amazon,qobuz`); the
+first success wins, and the file is renamed and tagged exactly like a Soulseek
+download. It's **off by default**.
+
+> ⚠️ **You must supply a working proxy URL.** These proxies are third-party,
+> reverse-engineered services that rotate hostnames and go offline frequently,
+> so SpotiSeek ships **no default endpoints**. Point the relevant environment
+> variable at a currently-working instance; providers without a configured URL
+> are skipped. (Qobuz is matched by ISRC, which is only available when Spotify
+> Web API credentials are configured.)
+
+```dotenv
+# Set only the providers you have a working proxy for. Examples of the API
+# "shapes" SpotiSeek expects (hostnames change — find a live one yourself):
+SPOTISEEK_TIDAL_API_URL=https://your-hifi-api-instance      # {base}/track/?id=..&quality=LOSSLESS
+SPOTISEEK_QOBUZ_API_URL=https://your-qobuz-rest-instance    # {base}/api/download-music?isrc=..&quality=27
+SPOTISEEK_AMAZON_API_URL=https://your-amazon-proxy          # {base}/track/?id=..
+SPOTISEEK_DEEZER_API_URL=https://your-deezer-proxy          # {base}/track/?id=..
+```
+
+Downloading copyrighted audio from these services may be against their terms and
+your local law — use responsibly.
 
 ---
 
@@ -168,7 +203,8 @@ The window lets you:
 
 - 🔗 Paste a Spotify URL and hit **Download** (or **Info** to just list the tracks).
 - 🎛️ Set all the options — output folder (with a Browse button), parallel
-  downloads, match strictness, Extended Mix, tagging, min bitrate, dry run.
+  downloads, match strictness, Extended Mix, tagging, min bitrate, dry run, and
+  the lossless **fallback** toggle (proxy URLs still come from `.env`).
 - 🔑 Enter your **Spotify** and **Soulseek** credentials and **Save settings to
   .env** — no manual file editing. They're loaded automatically next time.
 - 📈 Watch a **live log** and a **progress bar** as tracks download; the UI stays

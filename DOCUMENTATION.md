@@ -42,6 +42,10 @@ spotiseek/
   soulseek/
     client.py       # SoulseekClient: aioslsk wrapper (login/search/download)
     matcher.py      # pure scoring & ranking of candidates
+  fallback/         # opt-in lossless fallback when Soulseek can't deliver
+    odesli.py       # resolve a Spotify track -> platform IDs (song.link API)
+    providers.py    # per-service proxy downloaders (Tidal/Qobuz/Amazon/Deezer)
+    source.py       # FallbackSource: resolve, then try providers in order
   tagging.py        # mutagen tag writing + cover-art embedding
   downloader.py     # orchestrator tying it all together
   gui.py            # optional PySide6 desktop front-end
@@ -244,14 +248,47 @@ successful — it never aborts a good file. `--no-tag` skips this step entirely.
    - 📥 `_try_standard`: skip if already on disk → search → rank → try up to
      `MAX_DOWNLOAD_ATTEMPTS` (5) ranked candidates → move to
      `<Artist> - <Title>.<ext>` → tag.
+   - 🛟 If `--fallback` is set and the Soulseek result is `SKIPPED_NO_RESULTS`,
+     `SKIPPED_NO_MATCH`, or `FAILED` (the `_FALLBACK_STATUSES` set), `_try_fallback`
+     runs the lossless fallback (§6.1). On success it returns a `DOWNLOADED`
+     result with `source` set to the provider; on failure the original skip/fail
+     result is preserved. In `--dry-run`, `_report_fallback` logs which providers
+     *would* have the track instead of downloading.
 5. Cleans up the `.incoming` directory and logs a summary
-   (`Downloaded X/Y tracks`, plus how many were Extended Mixes, plus the list of
-   skipped/failed tracks).
+   (`Downloaded X/Y tracks`, plus how many were Extended Mixes / via fallback,
+   plus the list of skipped/failed tracks).
 
 Each track yields a `DownloadResult` with a `DownloadStatus`
-(`DOWNLOADED`, `SKIPPED_NO_RESULTS`, `SKIPPED_NO_MATCH`, `FAILED`, `DRY_RUN`) and
-an `extended` flag. 🤷 A missing or failing track is logged and never stops the
-others.
+(`DOWNLOADED`, `SKIPPED_NO_RESULTS`, `SKIPPED_NO_MATCH`, `FAILED`, `DRY_RUN`), an
+`extended` flag, and a `source` (the fallback provider name, or `None` for
+Soulseek). 🤷 A missing or failing track is logged and never stops the others.
+
+### 6.1 🛟 Lossless fallback (`fallback/`)
+
+Off by default; enabled with `--fallback` (or the GUI checkbox). Mirrors what
+[SpotiFLAC](https://github.com/spotbye/SpotiFLAC) does:
+
+1. **Resolve** (`odesli.py`) — `resolve()` calls the free public Odesli /
+   song.link API with the track's Spotify URL (built from `Track.spotify_id`, so
+   it works on the embed path with no ISRC) and parses `entitiesByUniqueId` into
+   native per-platform IDs. Odesli covers Tidal, Deezer and Amazon Music but
+   **not Qobuz**.
+2. **Download** (`providers.py`) — each `Provider` (`TidalProvider`,
+   `QobuzProvider`, `AmazonProvider`, `DeezerProvider`) hits a configurable proxy
+   base URL to obtain a direct media URL, then streams it to the `.incoming`
+   dir. URL extraction (`_find_stream_url`) is deliberately defensive — it looks
+   under known keys, then scans the whole payload — because proxy response shapes
+   drift. Files below `_MIN_AUDIO_BYTES` (64 KiB) are discarded as error blobs.
+   Qobuz is keyed by **ISRC** rather than an Odesli ID.
+3. **Orchestrate** (`source.py`) — `FallbackSource.download()` resolves once, then
+   tries `config.fallback_providers` in order, returning the first
+   `FallbackOutcome` (temp path, extension, provider). Synchronous (`requests`);
+   the downloader dispatches it via `asyncio.to_thread`, like tagging.
+
+**Proxy base URLs are not hard-coded.** These reverse-engineered services rotate
+and go offline constantly, so each provider's URL comes from
+`SPOTISEEK_<PROVIDER>_API_URL` (resolved in `Config.load`); a provider with no
+URL is skipped with a log line. A single provider failing never aborts a run.
 
 ---
 
@@ -377,6 +414,12 @@ CI lives in `.github/workflows/build.yml`:
   falls back to the standard track.
 - 🔄 **No transcoding.** SpotiSeek downloads whatever format the chosen peer
   offers; it never converts between formats.
+- 🛟 **Fallback proxies are volatile.** The `--fallback` sources (§6.1) rely on
+  third-party, reverse-engineered proxies that rotate hostnames and go offline
+  often, so no default URLs ship — you must configure a live
+  `SPOTISEEK_<PROVIDER>_API_URL`, and the response-parsing may need adjusting if a
+  proxy changes its format. Qobuz needs an ISRC (Web API metadata only), and
+  using these sources may breach the services' terms and local law.
 
 ---
 

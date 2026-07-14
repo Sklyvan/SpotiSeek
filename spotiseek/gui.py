@@ -210,6 +210,15 @@ class MainWindow(QMainWindow):
         form.addRow(self.tag_check)
         self.dryrun_check = QCheckBox("Dry Run")
         form.addRow(self.dryrun_check)
+        self.fallback_check = QCheckBox(
+            "Use lossless fallback (Tidal/Deezer/Amazon/Qobuz) when Soulseek fails"
+        )
+        self.fallback_check.setToolTip(
+            "When Soulseek can't find a track, fetch it in lossless FLAC from "
+            "streaming-service proxies via Odesli. Requires a working proxy URL "
+            "in SPOTISEEK_<PROVIDER>_API_URL (see the README)."
+        )
+        form.addRow(self.fallback_check)
 
         layout.addWidget(opts)
 
@@ -293,7 +302,7 @@ class MainWindow(QMainWindow):
 
     # -- config from fields ------------------------------------------------ #
     def _current_config(self) -> Config:
-        return Config(
+        cfg = Config(
             spotify_client_id=self.spotify_id.text().strip() or None,
             spotify_client_secret=self.spotify_secret.text().strip() or None,
             soulseek_username=self.slsk_user.text().strip(),
@@ -306,7 +315,16 @@ class MainWindow(QMainWindow):
             tag=self.tag_check.isChecked(),
             dry_run=self.dryrun_check.isChecked(),
             extended_mix=self.extended_check.isChecked(),
+            fallback=self.fallback_check.isChecked(),
         )
+        # Fallback proxy base URLs have no GUI field; they come from env/.env.
+        # Reuse Config.load's resolution so there's a single source of truth.
+        env_cfg = Config.load()
+        cfg.tidal_api_url = env_cfg.tidal_api_url
+        cfg.qobuz_api_url = env_cfg.qobuz_api_url
+        cfg.amazon_api_url = env_cfg.amazon_api_url
+        cfg.deezer_api_url = env_cfg.deezer_api_url
+        return cfg
 
     # -- actions ----------------------------------------------------------- #
     def _browse_output(self) -> None:

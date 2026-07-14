@@ -11,6 +11,7 @@ import shutil
 
 from .config import Config
 from .errors import ConfigError, DownloadError
+from .fallback import FallbackSource
 from .models import (
     Candidate,
     DownloadResult,
@@ -30,6 +31,14 @@ MAX_DOWNLOAD_ATTEMPTS = 5
 #: Per-file transfer timeout (seconds).
 DOWNLOAD_TIMEOUT = 300.0
 _INCOMING_DIRNAME = ".incoming"
+#: Soulseek outcomes that warrant trying the lossless fallback source.
+_FALLBACK_STATUSES = frozenset(
+    {
+        DownloadStatus.SKIPPED_NO_RESULTS,
+        DownloadStatus.SKIPPED_NO_MATCH,
+        DownloadStatus.FAILED,
+    }
+)
 
 
 def _safe_filename(name: str) -> str:
@@ -181,7 +190,67 @@ class Downloader:
             if extended_result is not None:
                 return extended_result
 
-        return await self._try_standard(client, prefix, track)
+        result = await self._try_standard(client, prefix, track)
+        if self.config.fallback and result.status in _FALLBACK_STATUSES:
+            if self.config.dry_run:
+                await self._report_fallback(prefix, track)
+            else:
+                return await self._try_fallback(prefix, track, result)
+        return result
+
+    async def _try_fallback(
+        self, prefix: str, track: Track, soulseek_result: DownloadResult
+    ) -> DownloadResult:
+        """Download ``track`` from a lossless streaming-service proxy.
+
+        Returns the original Soulseek result unchanged if the fallback can't
+        deliver — a fallback failure must never look worse than a plain skip.
+        """
+        logger.info("%s — Soulseek came up empty; trying lossless fallback...", prefix)
+        source = FallbackSource(self.config)
+        try:
+            outcome = await asyncio.to_thread(
+                source.download, track, self.incoming_dir
+            )
+        except Exception as exc:  # the fallback must never break a run
+            logger.warning("%s — fallback source error: %s", prefix, exc)
+            return soulseek_result
+        if outcome is None:
+            return soulseek_result
+
+        final_path = self._place_file(outcome.path, track, outcome.extension)
+        if self.config.tag:
+            await asyncio.to_thread(tagging.tag_file, final_path, track, True)
+        logger.info(
+            "%s — saved via %s fallback to %s", prefix, outcome.provider, final_path
+        )
+        return DownloadResult(
+            track,
+            DownloadStatus.DOWNLOADED,
+            path=final_path,
+            source=outcome.provider,
+        )
+
+    async def _report_fallback(self, prefix: str, track: Track) -> None:
+        """Dry-run: report which fallback providers *would* have the track."""
+        source = FallbackSource(self.config)
+        try:
+            resolved = await asyncio.to_thread(source.resolve, track)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("%s — fallback resolve error: %s", prefix, exc)
+            return
+        if resolved is None:
+            logger.info("%s — fallback: not found on any platform.", prefix)
+            return
+        available = source.available_providers(resolved)
+        if available:
+            logger.info("%s — fallback would try: %s.", prefix, ", ".join(available))
+        else:
+            logger.info(
+                "%s — fallback: resolved, but no configured provider has it "
+                "(set SPOTISEEK_<PROVIDER>_API_URL).",
+                prefix,
+            )
 
     async def _try_extended(
         self, client: SoulseekClient, prefix: str, track: Track
@@ -332,13 +401,19 @@ class Downloader:
     def _finalize(
         self, local_path: str, track: Track, candidate: Candidate, extended: bool = False
     ) -> str:
+        """Move a completed Soulseek download to its final flat path."""
+        ext = candidate.extension or (
+            local_path.rsplit(".", 1)[-1].lower() if "." in local_path else "bin"
+        )
+        return self._place_file(local_path, track, ext, extended)
+
+    def _place_file(
+        self, local_path: str, track: Track, ext: str, extended: bool = False
+    ) -> str:
         """Move a completed download to the flat '<Artist> - <Title>.<ext>' path.
 
         Adds the ' (Extended Mix)' suffix to the filename when ``extended``.
         """
-        ext = candidate.extension or (
-            local_path.rsplit(".", 1)[-1].lower() if "." in local_path else "bin"
-        )
         stem = _target_basename(track, extended=extended)
         dest = os.path.join(self.output_dir, f"{stem}.{ext}")
         os.makedirs(self.output_dir, exist_ok=True)
@@ -371,8 +446,14 @@ class Downloader:
         if dry:
             logger.info("Dry run: %d/%d track(s) would be downloaded.", len(dry), total)
         else:
+            notes: list[str] = []
             extended_count = sum(1 for r in downloaded if r.extended)
-            extra = f" ({extended_count} as Extended Mix)" if extended_count else ""
+            if extended_count:
+                notes.append(f"{extended_count} as Extended Mix")
+            fallback_count = sum(1 for r in downloaded if r.source)
+            if fallback_count:
+                notes.append(f"{fallback_count} via fallback")
+            extra = f" ({', '.join(notes)})" if notes else ""
             logger.info("Downloaded %d/%d track(s)%s.", len(downloaded), total, extra)
         if skipped:
             logger.info("Skipped %d track(s):", len(skipped))

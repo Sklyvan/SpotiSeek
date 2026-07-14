@@ -161,6 +161,7 @@ class DownloadResult:
     path: str | None = None
     error: str | None = None
     extended: bool = False  # True when an Extended Mix was chosen/downloaded
+    source: str | None = None  # fallback provider name (e.g. "tidal"), if used
 
     @property
     def ok(self) -> bool:

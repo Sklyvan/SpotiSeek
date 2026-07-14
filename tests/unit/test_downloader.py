@@ -9,6 +9,7 @@ import pytest
 
 from spotiseek.config import Config
 from spotiseek.errors import DownloadError
+from spotiseek.fallback import FallbackOutcome
 from spotiseek.models import DownloadStatus, MetadataSource, Track
 from spotiseek import downloader as dl
 
@@ -52,6 +53,27 @@ class FakeClient:
         with open(path, "wb") as fh:
             fh.write(b"FAKEAUDIO")
         return path
+
+
+class FakeFallbackSource:
+    """Stand-in for FallbackSource. Configure via class attributes per test."""
+
+    succeed = True
+    provider = "tidal"
+
+    def __init__(self, config):
+        self.config = config
+
+    def download(self, track, dest_dir):
+        if not FakeFallbackSource.succeed:
+            return None
+        os.makedirs(dest_dir, exist_ok=True)
+        path = os.path.join(dest_dir, "fallback.flac")
+        with open(path, "wb") as fh:
+            fh.write(b"FALLBACKAUDIO")
+        return FallbackOutcome(
+            path=path, extension="flac", provider=FakeFallbackSource.provider
+        )
 
 
 @pytest.fixture
@@ -311,3 +333,62 @@ async def test_parallel_processes_all_tracks(patched, tmp_path) -> None:
     assert len(downloaded) == 5
     saved = {Path(r.path).name for r in downloaded}
     assert saved == {f"Artist - Song {i}.flac" for i in range(5)}
+
+
+# --------------------------------------------------------------------------- #
+# Lossless fallback (opt-in)
+# --------------------------------------------------------------------------- #
+async def test_fallback_used_when_soulseek_empty(patched, monkeypatch, tmp_path) -> None:
+    patched.FakeClient.results = []  # Soulseek finds nothing
+    FakeFallbackSource.succeed = True
+    FakeFallbackSource.provider = "tidal"
+    monkeypatch.setattr(dl, "FallbackSource", FakeFallbackSource)
+
+    results = await dl.run_download(_config(tmp_path, fallback=True), TRACK_URL)
+
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    assert results[0].source == "tidal"
+    saved = Path(results[0].path)
+    assert saved.exists()
+    assert saved.name == "Daft Punk - One More Time.flac"
+    assert len(patched.tag_calls) == 1  # fallback file is tagged too
+
+
+async def test_fallback_disabled_still_skips(patched, monkeypatch, tmp_path) -> None:
+    patched.FakeClient.results = []
+    FakeFallbackSource.succeed = True
+    monkeypatch.setattr(dl, "FallbackSource", FakeFallbackSource)
+
+    results = await dl.run_download(_config(tmp_path, fallback=False), TRACK_URL)
+
+    assert results[0].status is DownloadStatus.SKIPPED_NO_RESULTS
+    assert results[0].source is None
+
+
+async def test_fallback_failure_preserves_skip(patched, monkeypatch, tmp_path) -> None:
+    patched.FakeClient.results = []
+    FakeFallbackSource.succeed = False  # fallback can't deliver either
+    monkeypatch.setattr(dl, "FallbackSource", FakeFallbackSource)
+
+    results = await dl.run_download(_config(tmp_path, fallback=True), TRACK_URL)
+
+    assert results[0].status is DownloadStatus.SKIPPED_NO_RESULTS
+
+
+async def test_fallback_not_tried_on_soulseek_success(patched, monkeypatch, tmp_path) -> None:
+    patched.FakeClient.results = [
+        make_candidate(username="good", filename="Daft Punk - One More Time.flac")
+    ]
+    called = {"n": 0}
+
+    class Spy(FakeFallbackSource):
+        def download(self, track, dest_dir):
+            called["n"] += 1
+            return super().download(track, dest_dir)
+
+    monkeypatch.setattr(dl, "FallbackSource", Spy)
+    results = await dl.run_download(_config(tmp_path, fallback=True), TRACK_URL)
+
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    assert results[0].source is None  # came from Soulseek, not fallback
+    assert called["n"] == 0  # fallback never invoked
