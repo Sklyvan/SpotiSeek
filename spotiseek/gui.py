@@ -195,17 +195,17 @@ class MainWindow(QMainWindow):
         self.min_bitrate = QSpinBox()
         self.min_bitrate.setRange(0, 1411)
         self.min_bitrate.setSingleStep(32)
-        self.min_bitrate.setSpecialValueText("No Minimum")
+        self.min_bitrate.setSpecialValueText("Any")
         self.min_bitrate.setSuffix(" kbps")
         self.min_bitrate.setAlignment(Qt.AlignmentFlag.AlignLeft)
         # The default size hint is computed for the numeric range, which is
         # narrower than the "No Minimum" special text — give it room.
-        self.min_bitrate.setMinimumWidth(160)
+        self.min_bitrate.setMinimumWidth(100)
         form.addRow("Min Bitrate (Lossy):", self.min_bitrate)
 
         self.extended_check = QCheckBox("Prefer Official Extended Mix")
         form.addRow(self.extended_check)
-        self.longest_check = QCheckBox("Prefer Longest Version (full / extended cut)")
+        self.longest_check = QCheckBox("Prefer Longest Version")
         self.longest_check.setToolTip(
             "Pick the longest matching file instead of the one matching Spotify's "
             "duration — good for getting full/extended cuts that peers don't label "
@@ -218,7 +218,7 @@ class MainWindow(QMainWindow):
         self.dryrun_check = QCheckBox("Dry Run")
         form.addRow(self.dryrun_check)
         self.fallback_check = QCheckBox(
-            "Use lossless fallback (Tidal/Deezer/Amazon/Qobuz) when Soulseek fails"
+            "Use SpotiFLAC Fallback (Tidal/Deezer/Amazon/Qobuz)"
         )
         self.fallback_check.setToolTip(
             "When Soulseek can't find a track, fetch it in lossless FLAC from "
