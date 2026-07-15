@@ -307,3 +307,62 @@ def test_prefer_longest_does_not_penalize_unknown_duration(sample_track) -> None
     ranked = score_candidates(sample_track, cands, prefer_longest=True)
     # The lossless, name-clean candidate should still win despite no duration.
     assert ranked[0].username == "no_duration"
+
+
+# --------------------------------------------------------------------------- #
+# (c) Version intent — reject wrong recordings on the standard path
+# --------------------------------------------------------------------------- #
+def test_standard_track_rejects_alternate_recordings(sample_track) -> None:
+    # sample_track is the plain original -> a remix/VIP/foreign-name candidate
+    # must be rejected even though the title fuzz-matches strongly.
+    for fn in [
+        "Daft Punk - One More Time (VIP).flac",
+        "Daft Punk - One More Time (Alpha2 RMX).flac",
+        "Daft Punk - One More Time (Pro Mix).flac",
+        "Daft Punk - One More Time (KAMI Extended Mix).flac",
+    ]:
+        cands = [make_candidate(filename=fn, duration=320)]
+        assert score_candidates(sample_track, cands, MatchStrictness.BALANCED) == [], fn
+
+
+def test_standard_track_accepts_clean_and_plain_extended(sample_track) -> None:
+    clean = [make_candidate(filename="Daft Punk - One More Time.flac", duration=320)]
+    assert len(score_candidates(sample_track, clean, MatchStrictness.BALANCED)) == 1
+    ext = [make_candidate(filename="Daft Punk - One More Time (Extended Mix).flac",
+                          duration=320)]
+    assert len(score_candidates(sample_track, ext, MatchStrictness.BALANCED)) == 1
+
+
+def test_vip_track_requires_vip_token() -> None:
+    from spotiseek.version import classify
+
+    track = Track(title="One More Time (VIP)", artists=["Daft Punk"],
+                  duration_ms=320000)
+    vip = make_candidate(username="vip",
+                         filename="Daft Punk - One More Time (VIP).flac", duration=320)
+    plain = make_candidate(username="plain",
+                           filename="Daft Punk - One More Time.flac", duration=320)
+    ranked = score_candidates(track, [vip, plain], MatchStrictness.BALANCED)
+    assert [c.username for c in ranked] == ["vip"]
+
+
+def test_score_floor_via_min_score(sample_track) -> None:
+    cands = [make_candidate(filename="Daft Punk - One More Time.flac", duration=320)]
+    # An impossibly high floor rejects even a strong match...
+    assert score_candidates(sample_track, cands, min_score=99.0) == []
+    # ...while a zero floor keeps it.
+    assert len(score_candidates(sample_track, cands, min_score=0.0)) == 1
+
+
+def test_intent_defaults_to_track_version() -> None:
+    # A remix track (via its own .version) accepts the matching remix only.
+    track = Track(title="One More Time (Skrillex Remix)", artists=["Daft Punk"],
+                  duration_ms=320000)
+    remix = make_candidate(username="remix",
+                           filename="Daft Punk - One More Time (Skrillex Remix).flac",
+                           duration=320)
+    other = make_candidate(username="other",
+                           filename="Daft Punk - One More Time (Zedd Remix).flac",
+                           duration=320)
+    ranked = score_candidates(track, [remix, other], MatchStrictness.BALANCED)
+    assert [c.username for c in ranked] == ["remix"]
