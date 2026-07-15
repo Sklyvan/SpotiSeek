@@ -291,3 +291,19 @@ def test_prefer_longest_rejects_whole_album_mix(sample_track) -> None:
         make_candidate(filename="Daft Punk - One More Time.flac", duration=3600),
     ]
     assert score_candidates(sample_track, cands, prefer_longest=True) == []
+
+
+def test_prefer_longest_does_not_penalize_unknown_duration(sample_track) -> None:
+    # A strong lossless match that simply doesn't report its duration must not
+    # be demoted below a weaker match just because it has no length to blend in.
+    cands = [
+        make_candidate(username="no_duration",
+                       filename="Daft Punk - One More Time.flac",
+                       duration=None, bitrate=None),
+        make_candidate(username="shorter_named_worse",
+                       filename="Daft Punk - One More Time (radio).mp3",
+                       extension="mp3", bitrate=320, duration=320),
+    ]
+    ranked = score_candidates(sample_track, cands, prefer_longest=True)
+    # The lossless, name-clean candidate should still win despite no duration.
+    assert ranked[0].username == "no_duration"

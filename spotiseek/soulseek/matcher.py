@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 
 from rapidfuzz import fuzz
 
@@ -59,8 +60,14 @@ _NOISE_TOKENS = frozenset({
 })
 
 
+@lru_cache(maxsize=4096)
 def _normalize(text: str) -> str:
-    """Lowercase, strip accents and punctuation, collapse whitespace."""
+    """Lowercase, strip accents and punctuation, collapse whitespace.
+
+    Cached: scoring normalizes the same target string once per candidate and the
+    early-stop check re-normalizes the same candidate names on every poll, so a
+    single search re-derives the same values many times.
+    """
     text = unicodedata.normalize("NFKD", text or "")
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = text.lower()
@@ -275,7 +282,12 @@ def _apply_length_preference(ranked: list[Candidate]) -> None:
     if max_dur <= 0:
         return  # no usable durations -> leave scores untouched
     for candidate in ranked:
-        length_score = (candidate.duration or 0) / max_dur
+        if not candidate.duration:
+            # Length unknown for this peer: don't reward or penalize it. Blending
+            # in a 0 length term would demote an otherwise-strong match purely
+            # for not reporting its duration, so leave its base score intact.
+            continue
+        length_score = candidate.duration / max_dur
         base = candidate.score / 100.0
         blended = (1.0 - _W_LENGTH) * base + _W_LENGTH * length_score
         candidate.score = round(blended * 100, 3)
