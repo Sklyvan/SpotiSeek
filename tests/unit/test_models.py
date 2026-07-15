@@ -56,3 +56,13 @@ def test_display_keeps_full_title() -> None:
     track = Track(title="Money - 2011 Remaster", artists=["Pink Floyd"])
     # Display / tagging still use the full, original title.
     assert track.display == "Pink Floyd - Money - 2011 Remaster"
+
+
+def test_track_version_property() -> None:
+    from spotiseek.version import VersionKind
+
+    assert Track(title="Song (Extended Mix)").version.kind is VersionKind.LONG
+    assert Track(title="Plain").version.kind is VersionKind.STANDARD
+    # Cached: repeated access returns the same object.
+    t = Track(title="Song (Radio Edit)")
+    assert t.version is t.version

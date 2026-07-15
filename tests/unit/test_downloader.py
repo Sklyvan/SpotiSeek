@@ -394,3 +394,90 @@ async def test_fallback_not_tried_on_soulseek_success(patched, monkeypatch, tmp_
     assert results[0].status is DownloadStatus.DOWNLOADED
     assert results[0].source is None  # came from Soulseek, not fallback
     assert called["n"] == 0  # fallback never invoked
+
+
+# --------------------------------------------------------------------------- #
+# Version-intelligence naming (the reported contradictions)
+# --------------------------------------------------------------------------- #
+async def test_extended_strips_short_qualifier_in_name(patched, tmp_path) -> None:
+    # "Oxygen - Radio Edit" + --extended-mix must be named "Oxygen (Extended Mix)",
+    # never the contradictory "Oxygen - Radio Edit (Extended Mix)".
+    patched.state["tracks"] = [Track(title="Oxygen - Radio Edit",
+                                     artists=["Bass Modulators"])]
+    patched.FakeClient.ext_results = [
+        make_candidate(username="ext",
+                       filename="Bass Modulators - Oxygen (Extended Mix).flac",
+                       duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    assert Path(results[0].path).name == "Bass Modulators - Oxygen (Extended Mix).flac"
+
+
+async def test_extended_preserves_style_edit(patched, tmp_path) -> None:
+    # "Imaginary (Uptempo Edit)" is a genre style-edit: keep it, do NOT pursue
+    # or append an Extended Mix.
+    patched.state["tracks"] = [Track(title="Imaginary (Uptempo Edit)",
+                                     artists=["Artist"])]
+    patched.FakeClient.results = [
+        make_candidate(username="std",
+                       filename="Artist - Imaginary (Uptempo Edit).flac",
+                       duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    assert Path(results[0].path).name == "Artist - Imaginary (Uptempo Edit).flac"
+    # No Extended Mix search was issued for a style-edit.
+    assert not any("extended mix" in q.lower() for q in patched.FakeClient.queries)
+
+
+async def test_extended_noop_when_already_extended(patched, tmp_path) -> None:
+    # A title that is already "(Extended Mix)" must not become a double-suffix.
+    patched.state["tracks"] = [Track(title="One More Time (Extended Mix)",
+                                     artists=["Daft Punk"])]
+    patched.FakeClient.results = [
+        make_candidate(username="std",
+                       filename="Daft Punk - One More Time (Extended Mix).flac",
+                       duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    name = Path(results[0].path).name
+    assert name.count("(Extended Mix)") == 1
+    assert not any("extended mix" in q.lower() for q in patched.FakeClient.queries)
+
+
+async def test_colliding_stems_do_not_overwrite(patched, tmp_path) -> None:
+    # Two different tracks that normalize to the same "<Artist> - <Title>" stem
+    # must land in two distinct files, not silently overwrite each other.
+    patched.state["tracks"] = [
+        Track(title="Reload", artists=["Umek"], spotify_id="a"),
+        Track(title="Reload", artists=["Umek"], spotify_id="b"),
+    ]
+    patched.FakeClient.results = [
+        make_candidate(username="p", filename="Umek - Reload.flac", duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path), TRACK_URL)
+    paths = {r.path for r in results if r.status is DownloadStatus.DOWNLOADED}
+    assert len(paths) == 2, f"expected 2 distinct files, got {paths}"
+    for p in paths:
+        assert os.path.exists(p)
+
+
+async def test_duplicate_listings_share_one_attempt(patched, tmp_path) -> None:
+    # The same (peer, file) listed twice must not consume two download attempts.
+    dupe = make_candidate(username="p", filename="Daft Punk - One More Time.flac")
+    patched.FakeClient.results = [dupe, dupe]
+    patched.FakeClient.fail_users = {"p"}  # both would fail; dedup -> one attempt
+    await dl.run_download(_config(tmp_path), TRACK_URL)
+    assert patched.FakeClient.download_calls == 1
+
+
+def test_safe_filename_strips_bidi_and_reserved() -> None:
+    # Right-to-left override (U+202E) is dropped (filename-spoofing guard).
+    assert "‮" not in dl._safe_filename("evil‮gpj.exe")
+    # Windows reserved device stems get a prefix so they can't alias a device.
+    assert dl._safe_filename("CON").lower().startswith("_con")
+    assert dl._safe_filename("nul").lower().startswith("_nul")
+    # Ordinary names are unchanged.
+    assert dl._safe_filename("Artist - Title") == "Artist - Title"

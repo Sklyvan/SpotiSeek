@@ -161,6 +161,15 @@ filters, then ranks.
 - its fuzzy name score is below the strictness threshold;
 - its reported duration is outside the strictness tolerance (only when the peer
   reports a duration — unknown durations are never rejected);
+- it is the **wrong recording** for the track's version intent (`intent`,
+  defaulting to `track.version` — see §4.2b): when the track is the plain
+  original, a candidate that is a remix/VIP/bootleg or carries a foreign
+  remixer/producer name is rejected (this is what stops a remix being accepted
+  because `token_set_ratio` ignores its extra tokens); when the track is itself
+  a remix/VIP/etc., a candidate must carry those tokens;
+- its final combined score is below an absolute floor per strictness
+  (`min_score` overridable) — a weak "best available" is treated as no-match
+  rather than downloaded;
 - `require_extended` is set and the filename is **not** an Extended Mix (see §4.3).
 
 🧮 **Scoring** (0–100) is a weighted sum:
@@ -187,10 +196,36 @@ The matcher returns the surviving candidates ranked best-first, so the
 downloader can try the top pick and **fall back to the next** if a transfer
 fails.
 
+### 4.2b 🧠 Version-qualifier intelligence (`spotiseek/version.py`)
+
+`version.py` is a pure, dependency-free **leaf module** (it must never import
+`models`, which imports it) and the single source of truth for what a title's
+version qualifier *means*. `classify(title, known_artists)` splits a qualifier
+into two independent axes — an **`Identity`** (original / remix / vip / bootleg /
+live / acoustic / instrumental / nightcore / speedmod / remaster / style-edit /
+other) and a **`Length`** (neutral / short / long) — because e.g. `Extended
+Remix` is a remix that is already long, and `X (Remix) (Radio Edit)` is a remix
+in a short cut. Precedence when several qualifiers coexist:
+**derivative > style-edit > long > short**; a bare `Edit` is SHORT, while a
+`<genre> Edit` (`Uptempo Edit`, `Festival Edit`, `Big Room Edit`) is a
+STYLE-EDIT that is preserved. `Track.version` exposes this (cached), and
+`Track.search_query` delegates its cleanup to `version.strip_for_search`.
+
+`plan_extended(info)` / `apply_qualifier(title, label)` drive `--extended-mix`
+naming from the classification: a SHORT cut is stripped and `(Extended Mix)` is
+appended (`Oxygen - Radio Edit` → `Oxygen (Extended Mix)`); an already-LONG title
+is left alone (no `… (Extended Mix) (Extended Mix)`); and a remix / VIP /
+style-edit is kept verbatim (no fabricated extended mix), always with the bare
+base title as a search fallback so a misclassification degrades to "found the
+original".
+
 ### 4.3 🎚️ Extended Mix mode
 
 When the user passes `--extended-mix` (`Config.extended_mix`), the downloader
-runs an **extended-first** strategy for each track (see §6):
+runs an **extended-first** strategy for each track (see §6). It is **skipped**
+(the track downloads under its own name via the standard path) when the title is
+already a long/extended cut or is itself a specific recording (remix, VIP, genre
+"… Edit") — those have no canonical Extended Mix to pursue. Otherwise:
 
 1. It searches Soulseek with `"<artist> <title> extended mix"`.
 2. It matches with `require_extended=True`, which keeps only candidates that give
@@ -269,9 +304,9 @@ successful — it never aborts a good file. `--no-tag` skips this step entirely.
 
 1. Parses the URL and fetches the track list.
 2. Opens one `SoulseekClient` for the whole run.
-3. Processes tracks through an `asyncio.Semaphore(parallel)` — so `--parallel 1`
-   (default) is sequential and `--parallel N` runs N tracks concurrently over
-   the single connection.
+3. Processes tracks through an `asyncio.Semaphore(parallel)` — `--parallel N`
+   runs N tracks concurrently over the single connection (default **3**;
+   `--parallel 1` forces sequential).
 4. Per track (`_process_track`):
    - 🎚️ If `--extended-mix` is set, first try `_try_extended` (search + match the
      Extended Mix). If it produces a result, use it; otherwise fall through.

@@ -25,10 +25,18 @@ never have to touch a terminal or edit `.env` by hand).
 - 🥇 Searches Soulseek and **auto-picks the best result**, preferring lossless
   (FLAC/WAV) → high-bitrate MP3 → anything playable, while checking the artist,
   title and (when the peer reports it) the track duration.
+- 🧠 **Understands version qualifiers.** A title like `Oxygen - Radio Edit` is
+  searched/named `Oxygen (Extended Mix)` under `--extended-mix` (never the
+  contradictory `Oxygen - Radio Edit (Extended Mix)`); `Original Mix` /
+  `Extended Mix` titles aren't double-suffixed; and genuinely different
+  recordings — `(… Remix)`, `(VIP)`, `(Uptempo Edit)` — are kept as-is. The
+  matcher also **rejects the wrong recording** (a remix/VIP or a foreign
+  remixer name when you asked for the original) instead of downloading it.
 - 🎚️ Optional **`--extended-mix`** mode: prefer the *official (Extended Mix)* of a
   track (extended **remixes/edits are ignored**), and fall back to the standard
   one if no official extended mix is available.
-- ⚡ Downloads **sequentially by default**, or **in parallel** with `--parallel N`.
+- ⚡ Downloads **3 tracks in parallel by default** (`--parallel N`, `1` =
+  sequential).
 - 🏷️ Writes tags and embeds cover art into each downloaded file.
 - 🤷 If a track can't be found or downloaded, it **logs a warning and moves on** —
   one missing track never stops the rest.
@@ -140,7 +148,7 @@ spotiseek info "<url>"
 | Option | Description | Default |
 |---|---|---|
 | `-o, --output DIR` | Where to save files | your Downloads folder |
-| `-p, --parallel N` | Concurrent downloads (`1` = sequential) | `1` |
+| `-p, --parallel N` | Concurrent downloads (`1` = sequential) | `3` |
 | `--extended-mix` | Prefer the official *(Extended Mix)*; fall back to standard | off |
 | `--prefer-longest` | Pick the longest matching version (full/extended cut) over the one matching Spotify's duration | off |
 | `--match {strict\|balanced\|lenient}` | How strictly to match results | `balanced` |

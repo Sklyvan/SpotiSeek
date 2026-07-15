@@ -53,7 +53,8 @@ class _Session:
     def __init__(self, handler):
         self.handler = handler
 
-    def get(self, url, params=None, timeout=None, headers=None, stream=False):
+    def get(self, url, params=None, timeout=None, headers=None, stream=False,
+            allow_redirects=True):
         return self.handler(url, params, stream)
 
 
@@ -241,3 +242,39 @@ def test_source_returns_none_when_unresolvable(monkeypatch, tmp_path) -> None:
     src = FallbackSource(Config(fallback_providers=["tidal"]))
     monkeypatch.setattr(src, "resolve", lambda track: None)
     assert src.download(_track(), str(tmp_path)) is None
+
+
+# --------------------------------------------------------------------------- #
+# SSRF / transport hardening
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("url", [
+    "https://169.254.169.254/latest/meta-data/",  # cloud metadata
+    "https://127.0.0.1/x.flac",
+    "https://10.0.0.5/x.flac",
+    "https://192.168.1.9/x.flac",
+    "https://localhost/x.flac",
+    "http://cdn.example/x.flac",  # not https
+])
+def test_stream_url_rejected(url) -> None:
+    assert providers._is_safe_stream_url(url) is False
+
+
+def test_stream_url_allowed() -> None:
+    assert providers._is_safe_stream_url("https://cdn.example/x.flac") is True
+
+
+def test_download_refuses_unsafe_url(tmp_path) -> None:
+    def handler(url, params, stream):
+        if stream:
+            return _Resp(content=b"\x00" * (128 * 1024))
+        return _Resp(json_data={"url": "https://127.0.0.1/x.flac"})
+
+    provider = providers.TidalProvider("https://tidal.example", session=_Session(handler))
+    # The resolved stream URL points at loopback -> refused, nothing written.
+    assert provider.fetch("1", str(tmp_path)) is None
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_find_stream_url_ignores_non_media_urls() -> None:
+    # A bare non-media URL (potential SSRF target) is no longer returned.
+    assert providers._find_stream_url({"redirect": "https://evil.example/ping"}) is None

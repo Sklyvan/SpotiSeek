@@ -13,13 +13,24 @@ from functools import lru_cache
 
 from rapidfuzz import fuzz
 
+from .. import version
 from ..models import Candidate, MatchStrictness, Track
+from ..version import VersionInfo
 
 # Minimum normalized name-similarity (0..1) required to accept a candidate.
 _NAME_THRESHOLD = {
     MatchStrictness.STRICT: 0.80,
     MatchStrictness.BALANCED: 0.58,
     MatchStrictness.LENIENT: 0.42,
+}
+# Absolute floor on the final combined score (0..100). A candidate that clears
+# the name threshold but scores below this overall is treated as no-match rather
+# than downloaded as a weak "best available" (guards against the wrong-recording
+# low-confidence accepts seen in the wild). Applied before the length blend.
+_COMBINED_FLOOR = {
+    MatchStrictness.STRICT: 65.0,
+    MatchStrictness.BALANCED: 55.0,
+    MatchStrictness.LENIENT: 45.0,
 }
 # Duration tolerance in seconds (None = do not filter on duration).
 _DURATION_TOLERANCE_S = {
@@ -116,6 +127,43 @@ def is_official_extended_mix(track: Track, candidate: Candidate) -> bool:
     return not (_extra_tokens(track, candidate) & _ALT_VERSION_KEYWORDS)
 
 
+def _candidate_title(candidate: Candidate) -> str:
+    """The candidate's filename as a title-ish string for classification."""
+    base = candidate.basename
+    if "." in base:
+        base = base.rsplit(".", 1)[0]
+    return base.replace("\\", " ").replace("/", " ")
+
+
+def _passes_intent(track: Track, candidate: Candidate, intent: VersionInfo) -> bool:
+    """Reject candidates whose *recording* mismatches the track's version intent.
+
+    * The track is itself a specific recording (remix / VIP / acoustic / style
+      edit): a candidate must carry that recording's tokens and must not be a
+      *different* specific recording.
+    * The track is the plain original: reject candidates that are a specific
+      alternate recording, or that carry foreign descriptive extras (an
+      unexpected remixer/producer name is itself evidence of a different cut —
+      this is what let "Oxygen (KAMI Extended Mix)" / "(Pro Mix)" through before).
+    * Otherwise (an unmapped/ambiguous qualifier): stay permissive.
+    """
+    cand_info = version.classify(_candidate_title(candidate), frozenset(track.artists))
+    if intent.is_restrictive:
+        cand_words = set(_normalize(_candidate_title(candidate)).split())
+        if not intent.tokens <= cand_words:
+            return False
+        if cand_info.is_restrictive and cand_info.identity is not intent.identity:
+            return False
+        return True
+    if intent.rejects_alternates:
+        if cand_info.is_restrictive:
+            return False
+        if _extra_tokens(track, candidate):
+            return False
+        return True
+    return True
+
+
 def _name_score(track: Track, candidate: Candidate) -> float:
     """Fuzzy similarity (0..1) of 'artist title' vs the candidate filename.
 
@@ -187,6 +235,7 @@ def has_ready_lossless_match(
     strictness: MatchStrictness = MatchStrictness.BALANCED,
     require_extended: bool = False,
     prefer_longest: bool = False,
+    intent: VersionInfo | None = None,
 ) -> bool:
     """Cheap early-stop check for searching: is a lossless candidate with a free
     upload slot already available and matching?
@@ -197,10 +246,14 @@ def has_ready_lossless_match(
     """
     name_threshold = _NAME_THRESHOLD[strictness]
     tolerance = None if require_extended else _DURATION_TOLERANCE_S[strictness]
+    if intent is None:
+        intent = track.version
     for candidate in candidates:
         if not (candidate.is_lossless and candidate.has_free_slots):
             continue
         if require_extended and not is_official_extended_mix(track, candidate):
+            continue
+        if not require_extended and not _passes_intent(track, candidate, intent):
             continue
         if _name_score(track, candidate) < name_threshold:
             continue
@@ -216,6 +269,8 @@ def score_candidates(
     min_bitrate: int | None = None,
     require_extended: bool = False,
     prefer_longest: bool = False,
+    intent: VersionInfo | None = None,
+    min_score: float | None = None,
 ) -> list[Candidate]:
     """Return acceptable candidates ranked best-first, scores populated.
 
@@ -227,9 +282,18 @@ def score_candidates(
     shorter previews/edits are rejected) and a length term sways the ranking
     toward the longest good match — useful for grabbing full/extended versions
     that peers don't explicitly label "Extended Mix".
+
+    ``intent`` (defaulting to ``track.version``) rejects candidates whose
+    *recording* differs from what the track asks for (a plain track rejects
+    remix/VIP files and files carrying a foreign remixer name; a remix/VIP track
+    requires those tokens). ``min_score`` overrides the per-strictness absolute
+    combined-score floor below which a candidate is treated as no-match.
     """
     name_threshold = _NAME_THRESHOLD[strictness]
     tolerance = None if require_extended else _DURATION_TOLERANCE_S[strictness]
+    floor = _COMBINED_FLOOR[strictness] if min_score is None else min_score
+    if intent is None:
+        intent = track.version
 
     ranked: list[Candidate] = []
     for candidate in candidates:
@@ -244,6 +308,10 @@ def score_candidates(
             # Reject remixes/edits/etc. — favour the official extended mix.
             if extras & _ALT_VERSION_KEYWORDS:
                 continue
+        elif not _passes_intent(track, candidate, intent):
+            # Wrong recording (a remix/VIP for a plain track, or a foreign
+            # remixer name) — reject regardless of how well the name fuzz-matches.
+            continue
 
         # Enforce a minimum bitrate for lossy files (lossless always passes).
         if (
@@ -266,7 +334,11 @@ def score_candidates(
             # Tiebreak toward the cleanest official name (fewest descriptive
             # extras like an album/edition label sitting next to it).
             combined *= 0.85 + 0.15 / (1.0 + len(extras))
-        candidate.score = round(combined * 100, 3)
+        score = round(combined * 100, 3)
+        # Absolute floor: a weak "best available" is worse than no match.
+        if score < floor:
+            continue
+        candidate.score = score
         ranked.append(candidate)
 
     if prefer_longest:

@@ -8,11 +8,13 @@ import logging
 import os
 import re
 import shutil
+import unicodedata
 
 from .config import Config
 from .errors import ConfigError, DownloadError
 from .fallback import FallbackSource
 from .models import (
+    AUDIO_EXTENSIONS,
     Candidate,
     DownloadResult,
     DownloadStatus,
@@ -23,6 +25,7 @@ from .soulseek.matcher import has_ready_lossless_match, score_candidates
 from .spotify.parser import parse_spotify_url
 from .spotify.provider import enrich_artwork, fetch_tracks
 from . import tagging
+from . import version
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +44,40 @@ _FALLBACK_STATUSES = frozenset(
 )
 
 
+#: Windows reserved device stems (case-insensitive), unsafe even with an ext.
+_WINDOWS_RESERVED = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
+
+
 def _safe_filename(name: str) -> str:
+    # Drop Unicode format/control chars (e.g. U+202E right-to-left override) that
+    # a crafted playlist/track title could use to spoof how a filename reads.
+    name = "".join(c for c in name if unicodedata.category(c) != "Cf")
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
     name = re.sub(r"\s+", " ", name).strip().strip(".")
-    return name[:200] or "track"
+    name = name[:200]
+    if name.split(".", 1)[0].lower() in _WINDOWS_RESERVED:
+        name = f"_{name}"
+    return name or "track"
 
 
 EXTENDED_SUFFIX = "(Extended Mix)"
 
 
 def _extended_title(track: Track) -> str:
-    return f"{track.title} {EXTENDED_SUFFIX}"
+    """The title to use for a downloaded Extended Mix.
+
+    Delegates to :func:`version.apply_qualifier`, which strips a contradictory
+    short qualifier first and never double-appends: "Oxygen - Radio Edit"
+    becomes "Oxygen (Extended Mix)", not "Oxygen - Radio Edit (Extended Mix)",
+    and "Song (Extended Mix)" is left unchanged.
+    """
+    return version.apply_qualifier(
+        track.title, EXTENDED_SUFFIX, frozenset(track.artists)
+    )
 
 
 def _target_basename(track: Track, extended: bool = False) -> str:
@@ -92,6 +118,10 @@ class Downloader:
         self.incoming_dir = os.path.join(self.output_dir, _INCOMING_DIRNAME)
         self._on_start = on_start
         self._on_track_done = on_track_done
+        # Destination paths already claimed this run, so two different tracks
+        # that normalize to the same "<Artist> - <Title>" stem don't silently
+        # overwrite each other (also guards concurrent workers under --parallel).
+        self._claimed: set[str] = set()
 
     def _notify(self, callback, *args) -> None:
         if callback is None:
@@ -256,12 +286,26 @@ class Downloader:
     async def _try_extended(
         self, client: SoulseekClient, prefix: str, track: Track
     ) -> DownloadResult | None:
-        """Attempt the Extended Mix. Returns a result, or None to fall back."""
+        """Attempt the Extended Mix. Returns a result, or None to fall back.
+
+        Skipped when the track is already an extended/long cut, or is itself a
+        specific recording (a remix, VIP, or a genre "… Edit") that has no
+        canonical Extended Mix to pursue — in those cases we keep the track as
+        named and download it via the standard path.
+        """
+        plan = version.plan_extended(track.version)
+        if plan.output_suffix is None:
+            note = plan.skip_note or "no separate Extended Mix applies"
+            logger.info(
+                "%s — %s; downloading the version as named.", prefix, note
+            )
+            return None
+
         if not self.config.dry_run:
             existing = _existing_download(
                 self.output_dir, _target_basename(track, extended=True)
             )
-            if existing:
+            if existing and not self._claimed_this_run(existing):
                 logger.info("%s — Extended Mix already present, skipping.", prefix)
                 return DownloadResult(
                     track, DownloadStatus.DOWNLOADED, path=existing, extended=True
@@ -308,7 +352,7 @@ class Downloader:
             existing = _existing_download(
                 self.output_dir, _target_basename(track, extended=False)
             )
-            if existing:
+            if existing and not self._claimed_this_run(existing):
                 logger.info("%s — already present, skipping.", prefix)
                 return DownloadResult(track, DownloadStatus.DOWNLOADED, path=existing)
 
@@ -360,8 +404,18 @@ class Downloader:
         ranked: list[Candidate],
         extended: bool = False,
     ) -> DownloadResult:
+        # Drop duplicate listings (same peer + same file) so we don't spend
+        # several of our limited attempts on one dead "File not shared" listing.
+        seen: set[tuple[str, str]] = set()
+        deduped: list[Candidate] = []
+        for c in ranked:
+            key = (c.username, c.basename)
+            if key not in seen:
+                seen.add(key)
+                deduped.append(c)
+
         last_error: str | None = None
-        for attempt, candidate in enumerate(ranked[:MAX_DOWNLOAD_ATTEMPTS], start=1):
+        for attempt, candidate in enumerate(deduped[:MAX_DOWNLOAD_ATTEMPTS], start=1):
             logger.info(
                 "%s — downloading %s (%s, score %.1f) from %s [try %d]",
                 prefix,
@@ -387,7 +441,14 @@ class Downloader:
                     else track
                 )
                 await self._tag(final_path, tag_track)
-            logger.info("%s — saved to %s", prefix, final_path)
+            # Name the actual source file in the saved line so a version
+            # mismatch is visible without cross-referencing the earlier
+            # "downloading …" line.
+            logger.info(
+                "%s — saved to %s (from %s: %s, score %.1f)",
+                prefix, final_path, candidate.username, candidate.basename,
+                candidate.score,
+            )
             return DownloadResult(
                 track,
                 DownloadStatus.DOWNLOADED,
@@ -416,11 +477,49 @@ class Downloader:
         Adds the ' (Extended Mix)' suffix to the filename when ``extended``.
         """
         stem = _target_basename(track, extended=extended)
-        dest = os.path.join(self.output_dir, f"{stem}.{ext}")
+        # The extension originates from the remote peer (Candidate.extension) and
+        # is spliced into the path — re-validate it here so a crafted value can't
+        # smuggle path separators / traversal into the destination, independent
+        # of the matcher's audio filter upstream.
+        ext = ext.lower().lstrip(".")
+        if ext not in AUDIO_EXTENSIONS:
+            ext = "bin"
         os.makedirs(self.output_dir, exist_ok=True)
+        dest = self._unique_dest(stem, ext, local_path)
         if os.path.abspath(local_path) != os.path.abspath(dest):
             shutil.move(local_path, dest)
         return dest
+
+    def _claimed_this_run(self, path: str) -> bool:
+        """True if ``path`` was written by an earlier track in *this* run.
+
+        Distinguishes a genuine collision (two different tracks, same stem —
+        don't skip, disambiguate) from a pre-existing file left by a previous
+        run (the resume/skip-if-present feature — do skip)."""
+        return os.path.abspath(path) in self._claimed
+
+    def _unique_dest(self, stem: str, ext: str, local_path: str) -> str:
+        """Pick a destination path that doesn't clobber a *different* file.
+
+        The plain '<stem>.<ext>' is used when free; otherwise a ' (2)', ' (3)'…
+        suffix is appended. Prevents two distinct tracks that normalize to the
+        same stem from silently overwriting each other (they used to, leaving a
+        result that reported DOWNLOADED but held another track's audio).
+        """
+        candidate = os.path.join(self.output_dir, f"{stem}.{ext}")
+        local_abs = os.path.abspath(local_path)
+        n = 1
+        while True:
+            key = os.path.abspath(candidate)
+            # Free if: we already own it (re-place of our own file), or it is
+            # neither claimed by another track this run nor already on disk.
+            if key == local_abs or (
+                key not in self._claimed and not os.path.exists(candidate)
+            ):
+                self._claimed.add(key)
+                return candidate
+            n += 1
+            candidate = os.path.join(self.output_dir, f"{stem} ({n}).{ext}")
 
     async def _tag(self, path: str, track: Track) -> None:
         """Tag a finished file, enriching missing cover art first.

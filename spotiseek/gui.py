@@ -206,7 +206,7 @@ class MainWindow(QMainWindow):
 
         self.parallel = QSpinBox()
         self.parallel.setRange(1, 16)
-        self.parallel.setValue(1)
+        self.parallel.setValue(3)
         self.parallel.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.parallel.setToolTip("Concurrent downloads (1 = sequential).")
         form.addRow("Parallel Downloads:", self.parallel)

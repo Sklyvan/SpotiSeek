@@ -38,7 +38,7 @@ def test_defaults(monkeypatch, tmp_path) -> None:
     assert cfg.soulseek_username == ""
     assert cfg.soulseek_password == ""
     assert cfg.has_soulseek_credentials is False
-    assert cfg.parallel == 1
+    assert cfg.parallel == 3
     assert cfg.match_strictness is MatchStrictness.BALANCED
     assert cfg.tag is True
     assert cfg.extended_mix is False
@@ -148,3 +148,14 @@ def test_save_env_creates_missing_file(tmp_path) -> None:
         assert "SOULSEEK_PASSWORD" in env_file.read_text()
     finally:
         os.environ.pop("SOULSEEK_PASSWORD", None)
+
+
+def test_save_env_is_owner_only(tmp_path) -> None:
+    import os
+    import sys
+
+    env = tmp_path / ".env"
+    save_env({"SOULSEEK_PASSWORD": "hunter2"}, env_file=env)
+    if sys.platform != "win32":
+        mode = env.stat().st_mode & 0o777
+        assert mode == 0o600, f"expected 0600, got {oct(mode)}"
