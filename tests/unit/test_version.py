@@ -180,3 +180,20 @@ def test_plan_extended_plain() -> None:
     assert plan.output_suffix == "(Extended Mix)"
     assert "Anthem (Extended Mix)" in plan.search_titles
     assert "Anthem" in plan.search_titles
+
+
+def test_bare_edit_pursues_extended() -> None:
+    # A bare short "- Edit" is stripped and pursues the Extended Mix (with a
+    # base fallback) — what --extended-mix asks for.
+    assert apply_qualifier("Encore - Edit") == "Encore (Extended Mix)"
+    plan = plan_extended(classify("Encore - Edit"))
+    assert plan.output_suffix == "(Extended Mix)"
+    assert "Encore (Extended Mix)" in plan.search_titles
+    assert "Encore" in plan.search_titles
+
+
+def test_ambiguous_word_edit_preserved() -> None:
+    # An unknown "<word> Edit" (no known artist, not a genre) stays put — we
+    # don't fabricate an extended mix for something we can't place.
+    assert apply_qualifier("Song (Kaskade Edit)") == "Song (Kaskade Edit)"
+    assert plan_extended(classify("Song (Kaskade Edit)")).output_suffix is None

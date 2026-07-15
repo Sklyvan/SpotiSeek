@@ -545,16 +545,11 @@ def apply_qualifier(title: str, label: str = _EXTENDED_LABEL,
     info = classify(title, known_artists)
     if info.length is Length.LONG or "extended" in _words(title):
         return _normalize_title(title)
-    if info.identity is not Identity.ORIGINAL:
-        # A specific recording (remix / VIP / style-edit / …): preserve it
-        # verbatim rather than fabricating an extended mix that may not exist.
+    if _preserve_as_is(info):
+        # A specific recording (remix / VIP / style-edit / ambiguous "<x> Edit"):
+        # preserve it verbatim rather than fabricating an extended mix.
         return _normalize_title(title)
-    base = (
-        info.base_title
-        if (info.length is Length.SHORT or info.qualifiers)
-        else _normalize_title(title)
-    )
-    return _clean(f"{base} {label}")
+    return _clean(f"{info.base_title} {label}")
 
 
 def plan_extended(info: VersionInfo) -> ExtendedPlan:
@@ -582,19 +577,31 @@ def plan_extended(info: VersionInfo) -> ExtendedPlan:
             output_suffix=None,
             skip_note="already an extended/long version",
         )
-    if info.identity in RESTRICTIVE_IDENTITIES or info.identity in (
-        Identity.REMASTER, Identity.OTHER,
-    ):
-        # A specific recording: don't fabricate an Extended Mix; preserve it,
-        # and also try the bare base so a miss degrades to the original.
+    if _preserve_as_is(info):
+        # A specific/ambiguous recording (remix, VIP, style edit, "<x> Edit"):
+        # don't fabricate an Extended Mix; preserve it, and also try the bare
+        # base so a miss degrades to the original.
         titles = (preserved,) if preserved == base else (preserved, base)
         return ExtendedPlan(search_titles=titles, output_suffix=None, skip_note=None)
-    # ORIGINAL identity (plain / short): pursue the extended cut, base fallback.
+    # A plain original, or a bare short cut ("- Edit", "- Radio Edit"): pursue the
+    # extended cut and fall back to the bare base title.
     return ExtendedPlan(
         search_titles=(_clean(f"{base} {_EXTENDED_LABEL}"), base),
         output_suffix=_EXTENDED_LABEL,
         skip_note=None,
     )
+
+
+def _preserve_as_is(info: VersionInfo) -> bool:
+    """True when a title names a specific recording that must not be turned into
+    an Extended Mix: a remix/VIP/style-edit (restrictive), a remaster, or an
+    ambiguous "<word> Edit" we couldn't confidently place (OTHER + no length
+    signal). A bare short cut (OTHER + SHORT) is NOT preserved — it is stripped
+    and an extended cut is pursued, since that is what --extended-mix asks for.
+    """
+    if info.identity in RESTRICTIVE_IDENTITIES or info.identity is Identity.REMASTER:
+        return True
+    return info.identity is Identity.OTHER and info.length is not Length.SHORT
 
 
 def _classify_pure_length(qualifier: str) -> bool:
