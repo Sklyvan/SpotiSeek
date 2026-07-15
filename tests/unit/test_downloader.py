@@ -445,3 +445,29 @@ async def test_extended_noop_when_already_extended(patched, tmp_path) -> None:
     name = Path(results[0].path).name
     assert name.count("(Extended Mix)") == 1
     assert not any("extended mix" in q.lower() for q in patched.FakeClient.queries)
+
+
+async def test_colliding_stems_do_not_overwrite(patched, tmp_path) -> None:
+    # Two different tracks that normalize to the same "<Artist> - <Title>" stem
+    # must land in two distinct files, not silently overwrite each other.
+    patched.state["tracks"] = [
+        Track(title="Reload", artists=["Umek"], spotify_id="a"),
+        Track(title="Reload", artists=["Umek"], spotify_id="b"),
+    ]
+    patched.FakeClient.results = [
+        make_candidate(username="p", filename="Umek - Reload.flac", duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path), TRACK_URL)
+    paths = {r.path for r in results if r.status is DownloadStatus.DOWNLOADED}
+    assert len(paths) == 2, f"expected 2 distinct files, got {paths}"
+    for p in paths:
+        assert os.path.exists(p)
+
+
+async def test_duplicate_listings_share_one_attempt(patched, tmp_path) -> None:
+    # The same (peer, file) listed twice must not consume two download attempts.
+    dupe = make_candidate(username="p", filename="Daft Punk - One More Time.flac")
+    patched.FakeClient.results = [dupe, dupe]
+    patched.FakeClient.fail_users = {"p"}  # both would fail; dedup -> one attempt
+    await dl.run_download(_config(tmp_path), TRACK_URL)
+    assert patched.FakeClient.download_calls == 1
