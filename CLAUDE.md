@@ -45,17 +45,31 @@ Notable `download` flags: `-o/--output` (default: OS Downloads folder),
   - `web_api.py` — official `spotipy` Web API path.
   - `embed.py` — credential-free public-embed scraper.
   - `provider.py` — tries Web API, then **automatically falls back to embed**.
+- `version.py` — **single source of truth for version-qualifier meaning.** Pure
+  leaf module (never import `models`): `classify(title, known_artists)` returns a
+  two-axis `VersionInfo` (`Identity` × `Length`); `strip_for_search`,
+  `plan_extended`, `apply_qualifier` drive search-query cleanup and Extended-Mix
+  naming. `Track.version` caches it. Don't reintroduce version vocabulary in
+  `models`/`matcher`/`downloader` — extend `version.py`.
 - `soulseek/` — `client.py` wraps embedded `aioslsk` (no external daemon;
   connects to the network itself). `matcher.py` scores candidates: prefers
   lossless (FLAC/WAV) > MP3 320 > anything playable, checking artist/title and
-  (when reported) duration.
+  (when reported) duration. A version `intent` (from `track.version`) rejects the
+  wrong recording (a remix/VIP/foreign-remixer file for a plain track; a missing
+  required token for a remix track), and an absolute per-strictness score floor
+  rejects weak "best available" matches.
 - `tagging.py` — writes tags + embeds cover art via `mutagen` (MP3/FLAC/WAV/M4A/AIFF,
   with a universal fallback tagger).
-- `downloader.py` — orchestration; sequential by default, `--parallel N` opt-in.
-  A track that can't be found/downloaded logs a warning and is skipped (one
-  failure never stops the rest).
+- `downloader.py` — orchestration; **`--parallel` defaults to 3**, `--parallel 1`
+  forces sequential. Extended-Mix naming/skip logic comes from `version.plan_extended`;
+  `_place_file` never silently overwrites a different track's file. A track that
+  can't be found/downloaded logs a warning and is skipped (one failure never
+  stops the rest).
+- `fallback/` — opt-in lossless fetch from streaming-service proxies. Proxy
+  stream URLs must be **HTTPS and non-private** (SSRF guard in `providers.py`).
 - `gui.py` — optional PySide6 front-end over the same core; runs downloads on a
-  QThread and persists credentials to `.env`. PySide6 imported lazily.
+  QThread (cancelled/joined on window close) and persists credentials to a
+  0600 `.env`. PySide6 imported lazily.
 - `models.py`, `errors.py`, `logging_setup.py` — shared types, exceptions, logging.
 
 ## Important gotcha: Spotify Web API 403
