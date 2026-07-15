@@ -5,14 +5,25 @@ description = "Read a Spotify URL (track/album/playlist) and download the tracks
 readme = "README.md"
 requires-python = ">=3.14"
 license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+# Upper bounds cap each dependency below its next major version: SpotiSeek is an
+# application (not a library), so pinning the major protects CI/users from a
+# breaking auto-upgrade. Bump the ceiling deliberately when adopting a new major.
 dependencies = [
-    "aioslsk>=1.6.0",
-    "spotipy>=2.24.0",
-    "mutagen>=1.47.0",
-    "click>=8.1.0",
-    "python-dotenv>=1.0.0",
-    "rapidfuzz>=3.9.0",
-    "requests>=2.32.0",
+    "aioslsk>=1.6.0,<2.0.0",
+    "spotipy>=2.24.0,<3.0.0",
+    "mutagen>=1.47.0,<2.0.0",
+    "click>=8.1.0,<9.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "rapidfuzz>=3.9.0,<4.0.0",
+    "requests>=2.32.0,<3.0.0",
 ]
 
 [project.scripts]
@@ -21,7 +32,7 @@ spotiseek-gui = "spotiseek.cli:gui"
 
 [project.optional-dependencies]
 # Desktop GUI (PySide6 is large, so it's opt-in): `pip install spotiseek[gui]`.
-gui = ["pyside6>=6.7.0"]
+gui = ["pyside6>=6.7.0,<7.0.0"]
 # For pip users: `pip install -e ".[dev]"`.
 dev = [
     "pytest>=8.0.0",
@@ -37,13 +48,13 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=5.0.0",
-    "pyside6>=6.7.0",
+    "pyside6>=6.7.0,<7.0.0",
 ]
 # Tools for building the standalone executables (used by CI and
 # scripts/build_executable.py). Not installed by default.
 build = [
-    "pyinstaller>=6.11.0",
-    "pillow>=10.0.0",
+    "pyinstaller>=6.11.0,<7.0.0",
+    "pillow>=10.0.0,<12.0.0",
 ]
 
 [build-system]
