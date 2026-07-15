@@ -106,3 +106,20 @@ def test_no_art_when_disabled(track, audio_dir, tmp_path) -> None:
     from mutagen.flac import FLAC
 
     assert len(FLAC(path).pictures) == 0
+
+
+@pytest.mark.parametrize("ext", ["wav", "aiff", "mp3"])
+def test_retagging_does_not_stack_cover_art(ext, track, audio_dir, tmp_path) -> None:
+    # Tagging the same file twice must replace the artwork, not append a second
+    # APIC frame (ID3 containers: WAV/AIFF/MP3).
+    path = _copy_fixture(audio_dir, tmp_path, ext)
+    if path is None:
+        pytest.skip(f"missing audio fixture sample.{ext}")
+
+    cover = (_PNG, "image/png")
+    assert tagging.tag_file(str(path), track, embed_art=True, cover=cover) is True
+    assert tagging.tag_file(str(path), track, embed_art=True, cover=cover) is True
+
+    f = mutagen.File(path)
+    apics = [k for k in (f.tags or {}) if str(k).startswith("APIC")]
+    assert len(apics) == 1, f"expected one cover frame for {ext}, got {apics}"

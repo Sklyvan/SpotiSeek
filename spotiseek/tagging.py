@@ -158,6 +158,9 @@ def _tag_id3_container(audio, track: Track, cover: tuple[bytes, str] | None) -> 
         tags.setall("TDRC", [TDRC(encoding=3, text=_year(track.release_date))])
     if cover:
         data, mime = cover
+        # Replace any existing artwork rather than appending a second frame, so
+        # re-tagging a file that already carried a cover doesn't stack them.
+        tags.delall("APIC")
         tags.add(APIC(encoding=3, mime=mime, type=3, desc="Cover", data=data))
     audio.save()
 
