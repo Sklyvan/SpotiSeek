@@ -59,6 +59,33 @@ def main() -> int:
         "--add-data", add_data,
         # aioslsk loads protocol/message classes dynamically.
         "--collect-submodules", "aioslsk",
+        # Exclude unused PySide6 modules to reduce binary size (~680 MB → ~380–420 MB).
+        # The GUI only imports QtCore, QtGui, QtWidgets; everything else is excluded.
+        "--exclude-module", "PySide6.QtWebEngine",
+        "--exclude-module", "PySide6.QtWebEngineCore",
+        "--exclude-module", "PySide6.QtWebEngineWidgets",
+        "--exclude-module", "PySide6.QtWebSockets",
+        "--exclude-module", "PySide6.QtMultimedia",
+        "--exclude-module", "PySide6.QtQuick",
+        "--exclude-module", "PySide6.QtQml",
+        "--exclude-module", "PySide6.Qt3D",
+        "--exclude-module", "PySide6.QtDesigner",
+        "--exclude-module", "PySide6.QtNetworkAuth",
+        "--exclude-module", "PySide6.QtBluetooth",
+        "--exclude-module", "PySide6.QtPositioning",
+        "--exclude-module", "PySide6.QtSensors",
+        "--exclude-module", "PySide6.QtSerialPort",
+        "--exclude-module", "PySide6.QtPrintSupport",
+        "--exclude-module", "PySide6.QtSql",
+        "--exclude-module", "PySide6.QtTest",
+        "--exclude-module", "PySide6.QtHelp",
+        "--exclude-module", "PySide6.QtUiTools",
+        "--exclude-module", "PySide6.QtCharts",
+        "--exclude-module", "PySide6.QtScxml",
+        "--exclude-module", "PySide6.QtStateMachine",
+        "--exclude-module", "PySide6.QtTextToSpeech",
+        "--exclude-module", "PySide6.QtLocation",
+        "--exclude-module", "PySide6.QtRemoteObjects",
     ]
     icon = _make_platform_icon()
     if icon is not None:
