@@ -6,6 +6,9 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
+from . import version
+from .version import _clean
+
 # Extensions we consider lossless for scoring purposes.
 LOSSLESS_EXTENSIONS = frozenset({"flac", "wav", "aiff", "aif", "ape", "alac"})
 # Extensions we accept as audio at all.
@@ -47,71 +50,9 @@ class DownloadStatus(str, Enum):
     DRY_RUN = "dry_run"
 
 
-def _clean(text: str) -> str:
-    """Collapse whitespace and strip a string safely."""
-    return re.sub(r"\s+", " ", text or "").strip()
-
-
-# Featured-artist segments (Soulseek filenames rarely list them, so they hurt
-# search recall): "(feat. X)", "[featuring X]". Deliberately NOT "with", which
-# is a common English word that also appears in legitimate titles
-# (e.g. "Recorded with Orchestra").
-_FEAT_RE = re.compile(
-    r"\s*[\(\[][^)\]]*\b(?:feat|ft|featuring)\b\.?[^)\]]*[\)\]]", re.IGNORECASE
-)
-# Remaster qualifiers appended by Spotify, e.g. "Song - Remastered 2011",
-# "Song - 2011 Remaster". Only "remaster(ed)" is stripped — mono/stereo are left
-# intact because they can be the actual master a user wants (e.g. "Help! - Mono").
-_REMASTER_RE = re.compile(
-    r"\s*[-(\[]\s*(?:\d{4}\s*)?re-?master(?:ed)?"
-    r"(?:\s*version)?(?:\s*\d{4})?\s*[)\]]?\s*$",
-    re.IGNORECASE,
-)
-
-
-# Version/edit qualifiers Spotify appends, e.g. "Song - Radio Edit",
-# "Song (Mixed)", "Song (Original Mix)". Soulseek matches a query by requiring
-# EVERY word to appear in a file's name, so leaving these in wrecks recall — most
-# fatally, "... Radio Edit extended mix" can never match a file named
-# "(Extended Mix)". They are stripped from the *search query only*; the real
-# title still drives the filename, tags and match validation. Deliberately NOT
-# listed: remix / live / mono / stereo / acoustic / instrumental — those denote
-# genuinely different recordings a user may specifically want.
-_VERSION_WORDS = frozenset({
-    "radio", "edit", "edits", "edited", "extended", "original", "album",
-    "single", "club", "version", "cut", "mix", "mixed",
-})
-# A trailing "(...)"/"[...]" segment, or a trailing " - ..." segment.
-_TRAIL_PAREN_RE = re.compile(r"\s*[\(\[]([^)\]]*)[\)\]]\s*$")
-_TRAIL_DASH_RE = re.compile(r"\s[-–—]\s+([^-–—]+?)\s*$")
-
-
-def _is_version_segment(segment: str) -> bool:
-    """True if every word in the segment is a version/edit marker (or a number)."""
-    words = re.findall(r"[a-z0-9]+", segment.lower())
-    return bool(words) and all(w in _VERSION_WORDS or w.isdigit() for w in words)
-
-
-def _strip_version_qualifiers(title: str) -> str:
-    """Drop trailing version/edit markers ('- Radio Edit', '(Mixed)') for search."""
-    changed = True
-    while changed:
-        changed = False
-        for pattern in (_TRAIL_PAREN_RE, _TRAIL_DASH_RE):
-            match = pattern.search(title)
-            if match and _is_version_segment(match.group(1)):
-                title = title[: match.start()].rstrip()
-                changed = True
-    return title
-
-
-def _search_title(title: str) -> str:
-    """Strip featured-artist, remaster and version noise to improve recall."""
-    cleaned = _FEAT_RE.sub("", title or "")
-    cleaned = _REMASTER_RE.sub("", cleaned)
-    cleaned = _strip_version_qualifiers(cleaned)
-    cleaned = _clean(cleaned)
-    return cleaned or _clean(title)
+# Version-qualifier parsing (search-query cleanup, title classification) now
+# lives in :mod:`spotiseek.version`, the single source of truth for version
+# vocabulary. ``Track`` delegates to it below.
 
 
 @dataclass(slots=True)
@@ -128,6 +69,11 @@ class Track:
     cover_url: str | None = None
     isrc: str | None = None
     spotify_id: str | None = None
+    # Lazily-computed version classification; not part of identity/repr so every
+    # existing ``Track(...)`` construction and equality is unaffected.
+    _version: "version.VersionInfo | None" = field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     @property
     def primary_artist(self) -> str:
@@ -142,6 +88,13 @@ class Track:
         return self.duration_ms / 1000.0 if self.duration_ms else None
 
     @property
+    def version(self) -> "version.VersionInfo":
+        """The parsed version qualifier of this track's title (cached)."""
+        if self._version is None:
+            self._version = version.classify(self.title, frozenset(self.artists))
+        return self._version
+
+    @property
     def search_query(self) -> str:
         """Query used to search Soulseek: 'primary artist title'.
 
@@ -149,7 +102,10 @@ class Track:
         Soulseek filenames rarely include; the matcher still validates against
         the full metadata, so recall improves without hurting precision.
         """
-        return _clean(f"{self.primary_artist} {_search_title(self.title)}")
+        return _clean(
+            f"{self.primary_artist} "
+            f"{version.strip_for_search(self.title, frozenset(self.artists))}"
+        )
 
     @property
     def display(self) -> str:
