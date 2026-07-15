@@ -23,6 +23,7 @@ from .soulseek.matcher import has_ready_lossless_match, score_candidates
 from .spotify.parser import parse_spotify_url
 from .spotify.provider import enrich_artwork, fetch_tracks
 from . import tagging
+from . import version
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,16 @@ EXTENDED_SUFFIX = "(Extended Mix)"
 
 
 def _extended_title(track: Track) -> str:
-    return f"{track.title} {EXTENDED_SUFFIX}"
+    """The title to use for a downloaded Extended Mix.
+
+    Delegates to :func:`version.apply_qualifier`, which strips a contradictory
+    short qualifier first and never double-appends: "Oxygen - Radio Edit"
+    becomes "Oxygen (Extended Mix)", not "Oxygen - Radio Edit (Extended Mix)",
+    and "Song (Extended Mix)" is left unchanged.
+    """
+    return version.apply_qualifier(
+        track.title, EXTENDED_SUFFIX, frozenset(track.artists)
+    )
 
 
 def _target_basename(track: Track, extended: bool = False) -> str:
@@ -256,7 +266,21 @@ class Downloader:
     async def _try_extended(
         self, client: SoulseekClient, prefix: str, track: Track
     ) -> DownloadResult | None:
-        """Attempt the Extended Mix. Returns a result, or None to fall back."""
+        """Attempt the Extended Mix. Returns a result, or None to fall back.
+
+        Skipped when the track is already an extended/long cut, or is itself a
+        specific recording (a remix, VIP, or a genre "… Edit") that has no
+        canonical Extended Mix to pursue — in those cases we keep the track as
+        named and download it via the standard path.
+        """
+        plan = version.plan_extended(track.version)
+        if plan.output_suffix is None:
+            note = plan.skip_note or "no separate Extended Mix applies"
+            logger.info(
+                "%s — %s; downloading the version as named.", prefix, note
+            )
+            return None
+
         if not self.config.dry_run:
             existing = _existing_download(
                 self.output_dir, _target_basename(track, extended=True)
@@ -387,7 +411,14 @@ class Downloader:
                     else track
                 )
                 await self._tag(final_path, tag_track)
-            logger.info("%s — saved to %s", prefix, final_path)
+            # Name the actual source file in the saved line so a version
+            # mismatch is visible without cross-referencing the earlier
+            # "downloading …" line.
+            logger.info(
+                "%s — saved to %s (from %s: %s, score %.1f)",
+                prefix, final_path, candidate.username, candidate.basename,
+                candidate.score,
+            )
             return DownloadResult(
                 track,
                 DownloadStatus.DOWNLOADED,

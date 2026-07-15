@@ -394,3 +394,54 @@ async def test_fallback_not_tried_on_soulseek_success(patched, monkeypatch, tmp_
     assert results[0].status is DownloadStatus.DOWNLOADED
     assert results[0].source is None  # came from Soulseek, not fallback
     assert called["n"] == 0  # fallback never invoked
+
+
+# --------------------------------------------------------------------------- #
+# Version-intelligence naming (the reported contradictions)
+# --------------------------------------------------------------------------- #
+async def test_extended_strips_short_qualifier_in_name(patched, tmp_path) -> None:
+    # "Oxygen - Radio Edit" + --extended-mix must be named "Oxygen (Extended Mix)",
+    # never the contradictory "Oxygen - Radio Edit (Extended Mix)".
+    patched.state["tracks"] = [Track(title="Oxygen - Radio Edit",
+                                     artists=["Bass Modulators"])]
+    patched.FakeClient.ext_results = [
+        make_candidate(username="ext",
+                       filename="Bass Modulators - Oxygen (Extended Mix).flac",
+                       duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    assert Path(results[0].path).name == "Bass Modulators - Oxygen (Extended Mix).flac"
+
+
+async def test_extended_preserves_style_edit(patched, tmp_path) -> None:
+    # "Imaginary (Uptempo Edit)" is a genre style-edit: keep it, do NOT pursue
+    # or append an Extended Mix.
+    patched.state["tracks"] = [Track(title="Imaginary (Uptempo Edit)",
+                                     artists=["Artist"])]
+    patched.FakeClient.results = [
+        make_candidate(username="std",
+                       filename="Artist - Imaginary (Uptempo Edit).flac",
+                       duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    assert Path(results[0].path).name == "Artist - Imaginary (Uptempo Edit).flac"
+    # No Extended Mix search was issued for a style-edit.
+    assert not any("extended mix" in q.lower() for q in patched.FakeClient.queries)
+
+
+async def test_extended_noop_when_already_extended(patched, tmp_path) -> None:
+    # A title that is already "(Extended Mix)" must not become a double-suffix.
+    patched.state["tracks"] = [Track(title="One More Time (Extended Mix)",
+                                     artists=["Daft Punk"])]
+    patched.FakeClient.results = [
+        make_candidate(username="std",
+                       filename="Daft Punk - One More Time (Extended Mix).flac",
+                       duration=None)
+    ]
+    results = await dl.run_download(_config(tmp_path, extended_mix=True), TRACK_URL)
+    assert results[0].status is DownloadStatus.DOWNLOADED
+    name = Path(results[0].path).name
+    assert name.count("(Extended Mix)") == 1
+    assert not any("extended mix" in q.lower() for q in patched.FakeClient.queries)
