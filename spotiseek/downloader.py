@@ -8,11 +8,13 @@ import logging
 import os
 import re
 import shutil
+import unicodedata
 
 from .config import Config
 from .errors import ConfigError, DownloadError
 from .fallback import FallbackSource
 from .models import (
+    AUDIO_EXTENSIONS,
     Candidate,
     DownloadResult,
     DownloadStatus,
@@ -42,10 +44,24 @@ _FALLBACK_STATUSES = frozenset(
 )
 
 
+#: Windows reserved device stems (case-insensitive), unsafe even with an ext.
+_WINDOWS_RESERVED = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
+
+
 def _safe_filename(name: str) -> str:
+    # Drop Unicode format/control chars (e.g. U+202E right-to-left override) that
+    # a crafted playlist/track title could use to spoof how a filename reads.
+    name = "".join(c for c in name if unicodedata.category(c) != "Cf")
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name)
     name = re.sub(r"\s+", " ", name).strip().strip(".")
-    return name[:200] or "track"
+    name = name[:200]
+    if name.split(".", 1)[0].lower() in _WINDOWS_RESERVED:
+        name = f"_{name}"
+    return name or "track"
 
 
 EXTENDED_SUFFIX = "(Extended Mix)"
@@ -461,6 +477,13 @@ class Downloader:
         Adds the ' (Extended Mix)' suffix to the filename when ``extended``.
         """
         stem = _target_basename(track, extended=extended)
+        # The extension originates from the remote peer (Candidate.extension) and
+        # is spliced into the path — re-validate it here so a crafted value can't
+        # smuggle path separators / traversal into the destination, independent
+        # of the matcher's audio filter upstream.
+        ext = ext.lower().lstrip(".")
+        if ext not in AUDIO_EXTENSIONS:
+            ext = "bin"
         os.makedirs(self.output_dir, exist_ok=True)
         dest = self._unique_dest(stem, ext, local_path)
         if os.path.abspath(local_path) != os.path.abspath(dest):

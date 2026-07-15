@@ -471,3 +471,13 @@ async def test_duplicate_listings_share_one_attempt(patched, tmp_path) -> None:
     patched.FakeClient.fail_users = {"p"}  # both would fail; dedup -> one attempt
     await dl.run_download(_config(tmp_path), TRACK_URL)
     assert patched.FakeClient.download_calls == 1
+
+
+def test_safe_filename_strips_bidi_and_reserved() -> None:
+    # Right-to-left override (U+202E) is dropped (filename-spoofing guard).
+    assert "‮" not in dl._safe_filename("evil‮gpj.exe")
+    # Windows reserved device stems get a prefix so they can't alias a device.
+    assert dl._safe_filename("CON").lower().startswith("_con")
+    assert dl._safe_filename("nul").lower().startswith("_nul")
+    # Ordinary names are unchanged.
+    assert dl._safe_filename("Artist - Title") == "Artist - Title"

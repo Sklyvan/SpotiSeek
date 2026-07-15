@@ -12,6 +12,7 @@ success or ``None`` on any failure, so one dead provider can't abort a run.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import uuid
@@ -42,6 +43,35 @@ _CT_TO_EXT = {
     "audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav",
     "audio/ogg": "ogg", "audio/opus": "opus",
 }
+
+
+_BLOCKED_HOSTNAMES = {"localhost", "ip6-localhost"}
+
+
+def _is_safe_stream_url(url: str) -> bool:
+    """Reject a resolved media URL that could drive an SSRF or plaintext fetch.
+
+    Requires HTTPS and refuses literal loopback/private/link-local/metadata
+    (169.254.0.0/16) IPs and obvious local hostnames. Hostnames are not resolved
+    (that would add a network round-trip and could still be DNS-rebound); this
+    blocks the concrete vectors a malicious/compromised proxy would embed.
+    """
+    parts = urlsplit(url)
+    if parts.scheme != "https":
+        return False
+    host = (parts.hostname or "").lower()
+    if not host or host in _BLOCKED_HOSTNAMES:
+        return False
+    if host.endswith((".local", ".internal", ".localhost")):
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return True  # a DNS hostname, not a literal IP
+    return not (
+        ip.is_private or ip.is_loopback or ip.is_link_local
+        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+    )
 
 
 def _safe_remove(path: str) -> None:
@@ -78,20 +108,21 @@ def _find_stream_url(payload: object) -> str | None:
                 if nested:
                     return nested
 
-    # 2) Otherwise walk everything, preferring URLs that look like media files.
-    fallback: str | None = None
+    # 2) Otherwise walk everything, accepting ONLY URLs that look like media
+    #    files. We deliberately do NOT fall back to "any http(s) URL found in
+    #    the payload" — that let a malicious proxy point us at an arbitrary host
+    #    (SSRF). A URL with no media extension is not trusted here.
     stack: list[object] = [payload]
     while stack:
         item = stack.pop()
         if is_http(item):
             if any(h in item.lower() for h in _MEDIA_HINTS):
                 return item  # type: ignore[return-value]
-            fallback = fallback or item  # type: ignore[assignment]
         elif isinstance(item, dict):
             stack.extend(item.values())
         elif isinstance(item, (list, tuple)):
             stack.extend(item)
-    return fallback
+    return None
 
 
 class BaseProvider:
@@ -139,13 +170,19 @@ class BaseProvider:
         return self._download(stream_url, dest_dir)
 
     def _download(self, url: str, dest_dir: str) -> tuple[str, str] | None:
+        if not _is_safe_stream_url(url):
+            logger.warning(
+                "%s: refusing unsafe stream URL (need https, non-private host): %s",
+                self.name, url,
+            )
+            return None
         os.makedirs(dest_dir, exist_ok=True)
         ext = _ext_from(url, None) or self.default_ext
         tmp = os.path.join(dest_dir, f"fallback-{self.name}-{uuid.uuid4().hex}.{ext}")
         try:
             with self.session.get(
                 url, stream=True, timeout=_STREAM_TIMEOUT,
-                headers={"User-Agent": _USER_AGENT},
+                headers={"User-Agent": _USER_AGENT}, allow_redirects=False,
             ) as resp:
                 resp.raise_for_status()
                 real_ext = _ext_from(url, resp.headers.get("Content-Type"))

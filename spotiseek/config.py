@@ -72,6 +72,13 @@ def save_env(
     """
     path = Path(env_file)
     path.touch(exist_ok=True)
+    # The file holds the Spotify secret and the Soulseek password in plaintext —
+    # make it owner-only so other local users can't read it. Best-effort: some
+    # filesystems / platforms (e.g. Windows) don't honor POSIX modes.
+    try:
+        os.chmod(path, 0o600)
+    except OSError:  # pragma: no cover - platform dependent
+        pass
     for key, value in values.items():
         value = value or ""
         set_key(str(path), key, value)
