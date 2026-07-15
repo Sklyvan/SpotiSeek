@@ -1,0 +1,22 @@
+# Minimal, opt-in pre-commit hooks for SpotiSeek.
+#
+# Intentionally NOT a linter/formatter/type-checker setup — CLAUDE.md is
+# explicit that none is configured for this project ("Match the existing
+# style"; no linter/formatter/type-checker). These hooks only catch basic
+# file hygiene issues (trailing whitespace, missing final newline, invalid
+# YAML) and never reformat Python code or change semantics.
+#
+# Usage (opt-in, nothing runs automatically until installed):
+#   uv tool install pre-commit   # or: pip install pre-commit
+#   pre-commit install           # sets up the git hook
+#   pre-commit run --all-files   # one-off check across the repo
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
