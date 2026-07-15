@@ -1,0 +1,48 @@
+# Automatically normalize line endings for all text files
+* text=auto
+
+# Audio files (binary)
+*.flac binary
+*.wav binary
+*.mp3 binary
+*.m4a binary
+*.aiff binary
+
+# Images (binary)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg text
+
+# Python files (text with LF)
+*.py text eol=lf
+*.pyx text eol=lf
+*.pyi text eol=lf
+*.pyc binary
+*.pyo binary
+
+# Config and documentation (text with LF)
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+.env* text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Shell scripts (text with LF)
+*.sh text eol=lf
+Makefile text eol=lf
+
+# Windows batch files
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Compiled/binary files
+*.pyc binary
+*.pyo binary
+*.egg-info binary
