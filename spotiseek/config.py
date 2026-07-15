@@ -47,9 +47,8 @@ def default_download_dir() -> Path:
                 if line.startswith("XDG_DOWNLOAD_DIR"):
                     raw = line.split("=", 1)[1].strip().strip('"').strip("'")
                     raw = raw.replace("$HOME", str(home))
-                    resolved = Path(os.path.expandvars(raw)).expanduser()
-                    if str(resolved):
-                        return resolved
+                    if raw:  # an empty value must not resolve to "." (cwd)
+                        return Path(os.path.expandvars(raw)).expanduser()
         except OSError:
             pass
     return home / "Downloads"

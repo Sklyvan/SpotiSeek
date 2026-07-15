@@ -130,6 +130,15 @@ def test_default_download_dir_linux_fallback(monkeypatch, tmp_path) -> None:
     assert default_download_dir() == Path.home() / "Downloads"
 
 
+def test_default_download_dir_linux_empty_xdg_value(monkeypatch, tmp_path) -> None:
+    # An empty XDG_DOWNLOAD_DIR must fall back to ~/Downloads, not resolve to
+    # "." (the current working directory).
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "user-dirs.dirs").write_text('XDG_DOWNLOAD_DIR=""\n')
+    assert default_download_dir() == Path.home() / "Downloads"
+
+
 def test_save_env_creates_missing_file(tmp_path) -> None:
     env_file = tmp_path / "sub" / ".env"
     env_file.parent.mkdir()
