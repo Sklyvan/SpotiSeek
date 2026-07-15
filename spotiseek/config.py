@@ -100,7 +100,7 @@ class Config:
 
     # Behaviour
     output_dir: Path = field(default_factory=default_download_dir)
-    parallel: int = 1
+    parallel: int = 3
     match_strictness: MatchStrictness = MatchStrictness.BALANCED
     search_timeout: float = DEFAULT_SEARCH_TIMEOUT
     min_bitrate: int | None = None

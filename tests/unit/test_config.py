@@ -38,7 +38,7 @@ def test_defaults(monkeypatch, tmp_path) -> None:
     assert cfg.soulseek_username == ""
     assert cfg.soulseek_password == ""
     assert cfg.has_soulseek_credentials is False
-    assert cfg.parallel == 1
+    assert cfg.parallel == 3
     assert cfg.match_strictness is MatchStrictness.BALANCED
     assert cfg.tag is True
     assert cfg.extended_mix is False

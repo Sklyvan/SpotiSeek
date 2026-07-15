@@ -35,7 +35,7 @@ def test_window_builds(qapp) -> None:
     ] == [m.value for m in MatchStrictness]
     assert window.match.currentData() == MatchStrictness.BALANCED.value
     assert window.tag_check.isChecked()
-    assert window.parallel.value() == 1
+    assert window.parallel.value() == 3
     # Soulseek username defaults to the project account.
     assert window.slsk_user.text()
 

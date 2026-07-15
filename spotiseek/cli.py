@@ -10,12 +10,15 @@ import click
 
 from . import __version__
 from .config import Config
-from .downloader import run_download
 from .errors import SpotiSeekError
 from .logging_setup import configure_logging
 from .models import DownloadStatus, MatchStrictness
 from .spotify.parser import parse_spotify_url
 from .spotify.provider import fetch_tracks
+
+# NOTE: `.downloader` (which pulls in the heavy aioslsk stack, ~250 ms) is
+# imported lazily inside the download command so that `info`, `--help` and
+# `--version` start fast and don't need the Soulseek client at all.
 
 logger = logging.getLogger("spotiseek")
 
@@ -39,7 +42,7 @@ def main() -> None:
     "(default: your Downloads folder).",
 )
 @click.option(
-    "-p", "--parallel", type=click.IntRange(min=1), default=1, show_default=True,
+    "-p", "--parallel", type=click.IntRange(min=1), default=3, show_default=True,
     help="Number of concurrent downloads (1 = sequential).",
 )
 @click.option(
@@ -105,6 +108,8 @@ def download(
     verbose: int,
 ) -> None:
     """Download every track in the given Spotify URL from Soulseek."""
+    from .downloader import run_download  # heavy import; only needed to download
+
     configure_logging(log_level, verbose)
     providers = (
         [p.strip() for p in fallback_providers.split(",") if p.strip()]
