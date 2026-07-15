@@ -96,6 +96,9 @@ class _Worker(QThread):
         self._config = config
         self._url = url
         self._mode = mode  # "download" | "info"
+        # Set while a download's event loop is live, so cancel() (called from the
+        # UI thread, e.g. on window close) can unwind it cleanly.
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     def run(self) -> None:  # executes in the worker thread
         try:
@@ -104,19 +107,51 @@ class _Worker(QThread):
                 tracks, source = fetch_tracks(self._config, kind, spotify_id)
                 self.info_ready.emit(kind.value, source.value, tracks)
                 return
-            results = asyncio.run(
-                run_download(
-                    self._config,
-                    self._url,
-                    on_start=self.started_total.emit,
-                    on_track_done=self.track_done.emit,
-                )
-            )
+            results = self._run_download()
             self.finished_ok.emit(results)
+        except asyncio.CancelledError:
+            # The user cancelled (typically by closing the window mid-download).
+            # The pipeline unwound cleanly via its async-context cleanup; there
+            # is no result to report.
+            return
         except SpotiSeekError as exc:
             self.failed.emit(str(exc))
         except Exception as exc:  # pragma: no cover - defensive
             self.failed.emit(f"Unexpected error: {exc}")
+
+    def _run_download(self) -> list:
+        # Own the event loop (rather than asyncio.run) so cancel() can reach the
+        # running task from the UI thread; asyncio.Runner still shuts down async
+        # generators and the default executor like asyncio.run does.
+        with asyncio.Runner() as runner:
+            self._loop = runner.get_loop()
+            try:
+                return runner.run(
+                    run_download(
+                        self._config,
+                        self._url,
+                        on_start=self.started_total.emit,
+                        on_track_done=self.track_done.emit,
+                    )
+                )
+            finally:
+                self._loop = None
+
+    def cancel(self) -> None:
+        """Request cancellation of an in-flight download (thread-safe).
+
+        A no-op for the (synchronous, quick) info lookup, which has no loop.
+        """
+        loop = self._loop
+        if loop is not None:
+            loop.call_soon_threadsafe(self._cancel_tasks, loop)
+
+    @staticmethod
+    def _cancel_tasks(loop: asyncio.AbstractEventLoop) -> None:
+        # Runs on the loop thread: cancelling the tasks makes runner.run() raise
+        # CancelledError, which run() catches.
+        for task in asyncio.all_tasks(loop):
+            task.cancel()
 
 
 # --------------------------------------------------------------------------- #
@@ -419,6 +454,33 @@ class MainWindow(QMainWindow):
 
     def _clear_worker(self) -> None:
         self._worker = None
+
+    # -- lifecycle --------------------------------------------------------- #
+    def closeEvent(self, event) -> None:
+        """Cancel and join a running job before the window (and its QThread) die.
+
+        Closing while a download runs otherwise destroys the still-running
+        QThread ("QThread: Destroyed while thread is still running"), which can
+        crash on exit. We confirm, cancel cooperatively, and wait for the thread
+        to unwind first.
+        """
+        worker = self._worker
+        if worker is not None and worker.isRunning():
+            reply = QMessageBox.question(
+                self,
+                "SpotiSeek",
+                "A job is still running. Quit and cancel it?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+            worker.cancel()
+            if not worker.wait(5000):  # ms; fall back to a hard stop on exit
+                worker.terminate()
+                worker.wait()
+        event.accept()
 
     def _set_running(self, running: bool) -> None:
         self.download_btn.setEnabled(not running)

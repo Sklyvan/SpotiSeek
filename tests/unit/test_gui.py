@@ -73,6 +73,24 @@ def test_worker_construction(qapp) -> None:
     assert not worker.isRunning()
 
 
+def test_close_with_no_worker_is_accepted(qapp) -> None:
+    # Closing when idle must accept the event without prompting or raising.
+    from PySide6.QtGui import QCloseEvent
+
+    window = MainWindow()
+    event = QCloseEvent()
+    window.closeEvent(event)
+    assert event.isAccepted()
+
+
+def test_worker_cancel_without_loop_is_noop(qapp) -> None:
+    # cancel() before a download loop exists (e.g. info mode / not started) must
+    # be a safe no-op rather than raising.
+    window = MainWindow()
+    worker = _Worker(window._current_config(), "spotify:track:abc", "download")
+    worker.cancel()  # must not raise
+
+
 def test_app_icon_optional(qapp) -> None:
     # _app_icon returns None when no icon file is present, and the window still
     # builds either way.
