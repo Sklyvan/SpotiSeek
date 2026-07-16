@@ -1,13 +1,8 @@
 # 🎵 SpotiSeek
 
-**SpotiSeek** reads a Spotify URL (a single track, an album, or a whole
-playlist), pulls the track metadata, then searches the
-[SoulSeek](https://www.slsknet.org/) P2P network for each track and
-downloads the best match it can find. Downloaded files are renamed and tagged
-(title, artist, album, track number, year) with the album cover art embedded.
+Reads a Spotify URL, pulls the track metadata, then downloads track from SoulSeek.
 
-It ships with both a command-line tool and a desktop GUI (so you never have to
-touch a terminal or edit `.env` by hand).
+It ships with both a command-line tool and a desktop GUI.
 
 > [!WARNING]
 > Only download material you have the right to. You are responsible for how you use it.
@@ -47,7 +42,7 @@ Don't want to install Python? Grab a **single-file build** for your OS:
 These launch the desktop GUI directly, no Python required. Notes:
 
 - **MacOS:** The first time right-click it → Open.
-- **Linux:** `chmod +x SpotiSeek-linux` first.
+- **Linux:** Run `chmod +x SpotiSeek-linux` first.
 
 To produce these yourself, see [Building Executables](#-building-executables).
 
@@ -71,9 +66,7 @@ spotiseek --help
 
 ## ⚙️ Configuration
 
-SpotiSeek reads settings from command-line flags, environment variables, or a
-`.env` file in the working directory (flags win over env, env wins over
-defaults). Copy the template and fill it in:
+Reads settings from command-line flags, environment variables, or a `.env` file in the working directory.
 
 ```bash
 cp .env.example .env
@@ -89,10 +82,8 @@ SOULSEEK_USERNAME=your_soulseek_username
 SOULSEEK_PASSWORD=your_soulseek_password
 ```
 
-**Spotify credentials are optional.** Without them (or if your API app is
-restricted), SpotiSeek falls back to Spotify's public metadata automatically.
-To get credentials: create a free app at
-<https://developer.spotify.com/dashboard>, then copy the Client ID and Secret.
+Spotify credentials are **optional**, without them (or if your API app is restricted), SpotiSeek falls back to Spotify's public metadata automatically.
+To get credentials: create a free app at <https://developer.spotify.com/dashboard>, then copy the Client ID and Secret.
 
 ---
 
