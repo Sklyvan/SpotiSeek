@@ -117,22 +117,22 @@ spotiseek info "<SpotifyURL>"
 
 ### 🎛️ Download Options
 
-| Option | Description                                                                         | Default                     |
-|---|-------------------------------------------------------------------------------------|-----------------------------|
-| `-o, --output DIR` | Where to save files                                                                 | Downloads Folder            |
-| `-p, --parallel N` | Concurrent downloads (`1` = sequential)                                             | `3`                         |
-| `--extended-mix` | Prefer the official *(Extended Mix)*                                                | OFF                         |
-| `--prefer-longest` | Pick the longest matching version                                                   | OFF                         |
-| `--match {strict\|balanced\|lenient}` | How strictly to match results                                                       | `Balanced`                  |
-| `--search-timeout SEC` | How long to gather SoulSeek results                                                 | `15`                        |
-| `--min-bitrate N` | Reject lossy files below this bitrate (kbps)                                        | None                        |
-| `--no-tag` | Don't write tags / embed art                                                        | OFF                         |
-| `--dry-run` | Search & match only; don't download                                                 | OFF                         |
-| `--fallback` | Fallback to streaming-service proxies ([see below](#-lossless-fallback---fallback)) | OFF                         |
-| `--fallback-providers LIST` | Comma-separated provider order                                                      | `tidal,deezer,amazon,qobuz` |
-| `--slsk-user`, `--slsk-pass` | Override SoulSeek credentials                                                       | From .env                   |
-| `--log-level` | Logging Verbosity                                                                   | `INFO`                      |
-| `-v` | Shortcut for `DEBUG` logging                                                        | none                        |
+| Option | Description                                                                      | Default                     |
+|---|----------------------------------------------------------------------------------|-----------------------------|
+| `-o, --output DIR` | Where to save files                                                              | Downloads Folder            |
+| `-p, --parallel N` | Concurrent downloads (`1` = sequential)                                          | `3`                         |
+| `--extended-mix` | Prefer the official *(Extended Mix)*                                             | OFF                         |
+| `--prefer-longest` | Pick the longest matching version                                                | OFF                         |
+| `--match` | How strictly to match results                                                    | `Balanced`                  |
+| `--search-timeout SEC` | How long to gather SoulSeek results                                              | `15`                        |
+| `--min-bitrate N` | Reject lossy files below this bitrate                                       | None                        |
+| `--no-tag` | Don't write tags / embed art                                                     | OFF                         |
+| `--dry-run` | Search & match only; don't download                                              | OFF                         |
+| `--fallback` | Fallback to streaming-service proxies | OFF                         |
+| `--fallback-providers LIST` | Comma-separated provider order                                                   | `tidal,deezer,amazon,qobuz` |
+| `--slsk-user`, `--slsk-pass` | Override SoulSeek credentials                                                    | From .env                   |
+| `--log-level` | Logging Verbosity                                                                | `INFO`                      |
+| `-v` | Shortcut for `DEBUG` logging                                                     | none                        |
 
 Files are saved as `<Artist> - <Title>.<ext>` (or `<Artist> - <Title> (Extended Mix).<ext>`
 when an extended mix was downloaded). If a matching file is already present in
