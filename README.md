@@ -1,7 +1,6 @@
 # 🎵 SpotiSeek
 
-Reads a Spotify URL, pulls the track metadata, then downloads track from SoulSeek.
-
+Reads a Spotify URL, pulls the track metadata, then downloads track from SoulSeek.<br>
 It ships with both a command-line tool and a desktop GUI.
 
 > [!WARNING]
