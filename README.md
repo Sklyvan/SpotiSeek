@@ -1,77 +1,59 @@
 # 🎵 SpotiSeek
 
-**SpotiSeek** reads a Spotify URL — a single track 🎧, an album 💿, or a whole
-playlist 📜 — pulls the track metadata, then searches the
-[Soulseek](https://www.slsknet.org/) peer-to-peer network for each track and
-downloads the best match it can find. ⬇️ Downloaded files are renamed and
-tagged (title, artist, album, track number, year) with the album cover art
-embedded. 🏷️🖼️
+**SpotiSeek** reads a Spotify URL (a single track, an album, or a whole
+playlist), pulls the track metadata, then searches the
+[SoulSeek](https://www.slsknet.org/) P2P network for each track and
+downloads the best match it can find. Downloaded files are renamed and tagged
+(title, artist, album, track number, year) with the album cover art embedded.
 
-It ships with both a **command-line tool** 💻 and a **desktop GUI** 🖥️ (so you
-never have to touch a terminal or edit `.env` by hand).
+It ships with both a command-line tool and a desktop GUI (so you never have to
+touch a terminal or edit `.env` by hand).
 
-> ⚠️ **Legal note.** SpotiSeek downloads files from other users on the Soulseek
-> network. Only download material you have the right to. You are responsible for
-> how you use it.
+> [!WARNING]
+> Only download material you have the right to. You are responsible for how you use it.
 
 ---
 
-## ✨ What it does
+## ✨ Features
 
-- 🔗 Accepts any Spotify **track**, **album**, or **playlist** URL (or `spotify:` URI).
-- 📖 Reads metadata from Spotify. It prefers the official Web API when you have
-  credentials, and automatically falls back to Spotify's public data when the
-  API is unavailable — so it works even without an API key.
-- 🥇 Searches Soulseek and **auto-picks the best result**, preferring lossless
-  (FLAC/WAV) → high-bitrate MP3 → anything playable, while checking the artist,
-  title and (when the peer reports it) the track duration.
-- 🧠 **Understands version qualifiers.** A title like `Oxygen - Radio Edit` is
-  searched/named `Oxygen (Extended Mix)` under `--extended-mix` (never the
-  contradictory `Oxygen - Radio Edit (Extended Mix)`); `Original Mix` /
-  `Extended Mix` titles aren't double-suffixed; and genuinely different
-  recordings — `(… Remix)`, `(VIP)`, `(Uptempo Edit)` — are kept as-is. The
-  matcher also **rejects the wrong recording** (a remix/VIP or a foreign
-  remixer name when you asked for the original) instead of downloading it.
-- 🎚️ Optional **`--extended-mix`** mode: prefer the *official (Extended Mix)* of a
-  track (extended **remixes/edits are ignored**), and fall back to the standard
-  one if no official extended mix is available.
-- ⚡ Downloads **3 tracks in parallel by default** (`--parallel N`, `1` =
-  sequential).
-- 🏷️ Writes tags and embeds cover art into each downloaded file.
-- 🤷 If a track can't be found or downloaded, it **logs a warning and moves on** —
-  one missing track never stops the rest.
+- Accepts any Spotify track, album, or playlist URL.
+- Reads metadata from Spotify, with an automatic fallback to public data.
+- Searches SoulSeek and auto-picks the best result, preferring lossless audio.
+- Understands version qualifiers and rejects the wrong recording.
+- Optional Extended Mix mode.
+- Downloads 3 tracks in parallel by default.
+- Writes tags and embeds cover art.
+- Skips missing tracks with a warning instead of stopping.
 
 ---
 
 ## 📦 Requirements
 
-- 🐍 **Python 3.14+**
-- 🔑 A **Soulseek login** (username + password). You don't need to pre-register:
-  any username works and is claimed on first login — but it can't be left blank.
-  SpotiSeek connects to the network itself; you don't need a separate Soulseek
-  client running.
-- *(Optional)* 🎼 **Spotify Developer credentials** for richest metadata — see below.
+- **Python 3.14+**
+- **SoulSeek Credentials** (username + password). You don't need to pre-register.
+- **Spotify Developer credentials** for richest metadata, this is optional.
 
-## 📥 Prebuilt executables
+## 📥 Prebuilt Executables
 
 Don't want to install Python? Grab a **single-file build** for your OS:
 
-- From a tagged **[Release](../../releases)**, or
-- From the **Actions** tab → latest *Build Executables* run → **Artifacts**
-  (`SpotiSeek-windows.exe`, `SpotiSeek-macos`, `SpotiSeek-linux`).
+- From the **Actions** tab
+- Latest *Build Executables* run
+- **Artifacts**
+  - `SpotiSeek-windows.exe`
+  - `SpotiSeek-macos`
+  - `SpotiSeek-linux`
 
-These launch the desktop GUI directly — no Python required. Notes:
+These launch the desktop GUI directly, no Python required. Notes:
 
-- 🍎 **macOS:** the binary is unsigned, so the first time right-click it →
-  **Open** (or `xattr -d com.apple.quarantine SpotiSeek-macos`).
-- 🐧 **Linux:** `chmod +x SpotiSeek-linux` first; a desktop environment with the
-  usual X11/`xcb` libraries is required.
+- **MacOS:** The first time right-click it → Open.
+- **Linux:** `chmod +x SpotiSeek-linux` first.
 
-To produce these yourself, see [Building executables](#-building-executables).
+To produce these yourself, see [Building Executables](#-building-executables).
 
 ## 🛠️ Installation
 
-Using [uv](https://docs.astral.sh/uv/) (recommended):
+Using [uv](https://docs.astral.sh/uv/) (Recommended):
 
 ```bash
 uv sync                    # CLI only
@@ -98,16 +80,16 @@ cp .env.example .env
 ```
 
 ```dotenv
-# Optional — richer/faster metadata via the official API.
+# Optional: richer/faster metadata via the official API.
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 
-# Required — your Soulseek login.
+# Required: your SoulSeek login.
 SOULSEEK_USERNAME=your_soulseek_username
 SOULSEEK_PASSWORD=your_soulseek_password
 ```
 
-🔓 **Spotify credentials are optional.** Without them (or if your API app is
+**Spotify credentials are optional.** Without them (or if your API app is
 restricted), SpotiSeek falls back to Spotify's public metadata automatically.
 To get credentials: create a free app at
 <https://developer.spotify.com/dashboard>, then copy the Client ID and Secret.
@@ -117,33 +99,32 @@ To get credentials: create a free app at
 ## 🚀 Usage
 
 ```bash
-# 🎧 Download a single track (sequential, into your Downloads folder)
-spotiseek download "https://open.spotify.com/track/0DiWol3AO6WpXZgp0goxAV"
+# Download a single track (sequential, into your Downloads folder)
+spotiseek download "https://open.spotify.com/track/..."
 
-# 💿 Download an entire album, 5 downloads at a time, into a chosen folder
-spotiseek download "https://open.spotify.com/album/2noRn2Aes5aoNVsU6iWThc" \
-    --parallel 5 --output ~/Music/SpotiSeek
+# Download an entire album, 5 downloads at a time, into a chosen folder
+spotiseek download "https://open.spotify.com/album/..." --parallel 5 --output ~/Downloads
 
-# 📜 Download a playlist
-spotiseek download "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
+# Download a playlist
+spotiseek download "https://open.spotify.com/playlist/..."
 
-# 🎚️ Prefer Extended Mixes (falls back to the standard version if none found)
-spotiseek download "https://open.spotify.com/track/6RN5TdlxfilLjMcy1tJlV5" --extended-mix
+# Prefer Extended Mixes (falls back to the standard version if none found)
+spotiseek download "https://open.spotify.com/track/.." --extended-mix
 
-# 📏 Grab the longest/full version even when peers don't label it "Extended Mix"
-spotiseek download "<url>" --prefer-longest
+# Grab the longest/full version even when peers don't label it "Extended Mix"
+spotiseek download "<SpotifyURL>" --prefer-longest
 
-# 🛟 Fall back to lossless streaming sources when Soulseek can't find a track
-spotiseek download "<url>" --fallback
+# Fall back to lossless streaming sources when SoulSeek can't find a track
+spotiseek download "<SpotifyURL>" --fallback
 
-# 👀 See what would be downloaded, without downloading (great for checking matches)
-spotiseek download "<url>" --dry-run
+# See what would be downloaded, without downloading (great for checking matches)
+spotiseek download "<SpotifyURL>" --dry-run
 
-# ℹ️ Just print the resolved track list for a URL
-spotiseek info "<url>"
+# Just print the resolved track list for a URL
+spotiseek info "<SpotifyURL>"
 ```
 
-### 🎛️ `download` options
+### 🎛️ Download Options
 
 | Option | Description | Default |
 |---|---|---|
@@ -152,37 +133,38 @@ spotiseek info "<url>"
 | `--extended-mix` | Prefer the official *(Extended Mix)*; fall back to standard | off |
 | `--prefer-longest` | Pick the longest matching version (full/extended cut) over the one matching Spotify's duration | off |
 | `--match {strict\|balanced\|lenient}` | How strictly to match results | `balanced` |
-| `--search-timeout SEC` | How long to gather Soulseek results per track | `15` |
-| `--min-bitrate N` | Reject lossy files below this bitrate (kbps) | — |
+| `--search-timeout SEC` | How long to gather SoulSeek results per track | `15` |
+| `--min-bitrate N` | Reject lossy files below this bitrate (kbps) | none |
 | `--no-tag` | Don't write tags / embed art | off |
 | `--dry-run` | Search & match only; don't download | off |
-| `--fallback` | If Soulseek fails, fetch lossless audio from streaming-service proxies ([see below](#-lossless-fallback---fallback)) | off |
+| `--fallback` | If SoulSeek fails, fetch lossless audio from streaming-service proxies ([see below](#-lossless-fallback---fallback)) | off |
 | `--fallback-providers LIST` | Comma-separated provider order for `--fallback` | `tidal,deezer,amazon,qobuz` |
-| `--slsk-user`, `--slsk-pass` | Override Soulseek credentials | from env |
+| `--slsk-user`, `--slsk-pass` | Override SoulSeek credentials | from env |
 | `--log-level {DEBUG\|INFO\|WARNING\|ERROR}` | Logging verbosity | `INFO` |
-| `-v` | Shortcut for `DEBUG` logging | — |
+| `-v` | Shortcut for `DEBUG` logging | none |
 
-📁 Files are saved as `<Artist> - <Title>.<ext>` (or `<Artist> - <Title> (Extended Mix).<ext>`
+Files are saved as `<Artist> - <Title>.<ext>` (or `<Artist> - <Title> (Extended Mix).<ext>`
 when an extended mix was downloaded). If a matching file is already present in
-the output folder, that track is skipped. ⏭️
+the output folder, that track is skipped.
 
 ### 🔚 Exit code
 
 `download` exits non-zero if there were tracks to fetch but **none** succeeded,
 which makes it easy to use in scripts.
 
-### 🛟 Lossless fallback (`--fallback`)
+### 🛟 Lossless Fallback (`--fallback`)
 
-Soulseek is the primary source. When it can't deliver a track (no results, no
+SoulSeek is the primary source. When it can't deliver a track (no results, no
 acceptable match, or every transfer fails), `--fallback` resolves the track to
 its counterpart on other streaming platforms via the free public
 [Odesli / song.link](https://odesli.co) API, then downloads a **lossless FLAC**
-through a per-provider proxy — the same approach [SpotiFLAC](https://github.com/spotbye/SpotiFLAC)
+through a per-provider proxy, the same approach [SpotiFLAC](https://github.com/spotbye/SpotiFLAC)
 uses. Providers are tried in order (default `tidal,deezer,amazon,qobuz`); the
-first success wins, and the file is renamed and tagged exactly like a Soulseek
+first success wins, and the file is renamed and tagged exactly like a SoulSeek
 download. It's **off by default**.
 
-> ⚠️ **You must supply a working proxy URL.** These proxies are third-party,
+> [!WARNING]
+> **You must supply a working proxy URL.** These proxies are third-party,
 > reverse-engineered services that rotate hostnames and go offline frequently,
 > so SpotiSeek ships **no default endpoints**. Point the relevant environment
 > variable at a currently-working instance; providers without a configured URL
@@ -191,7 +173,7 @@ download. It's **off by default**.
 
 ```dotenv
 # Set only the providers you have a working proxy for. Examples of the API
-# "shapes" SpotiSeek expects (hostnames change — find a live one yourself):
+# "shapes" SpotiSeek expects (hostnames change, find a live one yourself):
 SPOTISEEK_TIDAL_API_URL=https://your-hifi-api-instance      # {base}/track/?id=..&quality=LOSSLESS
 SPOTISEEK_QOBUZ_API_URL=https://your-qobuz-rest-instance    # {base}/api/download-music?isrc=..&quality=27
 SPOTISEEK_AMAZON_API_URL=https://your-amazon-proxy          # {base}/track/?id=..
@@ -199,7 +181,7 @@ SPOTISEEK_DEEZER_API_URL=https://your-deezer-proxy          # {base}/track/?id=.
 ```
 
 Downloading copyrighted audio from these services may be against their terms and
-your local law — use responsibly.
+your local law, use responsibly.
 
 ---
 
@@ -213,36 +195,38 @@ uv run spotiseek-gui       # or just: spotiseek-gui
 
 The window lets you:
 
-- 🔗 Paste a Spotify URL and hit **Download** (or **Info** to just list the tracks).
-- 🎛️ Set all the options — output folder (with a Browse button), parallel
+- Paste a Spotify URL and hit **Download** (or **Info** to just list the tracks).
+- Set all the options: output folder (with a Browse button), parallel
   downloads, match strictness, Extended Mix, tagging, min bitrate, dry run, and
   the lossless **fallback** toggle (proxy URLs still come from `.env`).
-- 🔑 Enter your **Spotify** and **Soulseek** credentials and **Save settings to
-  .env** — no manual file editing. They're loaded automatically next time.
-- 📈 Watch a **live log** and a **progress bar** as tracks download; the UI stays
+- Enter your **Spotify** and **SoulSeek** credentials and **Save settings to
+  .env**, no manual file editing. They're loaded automatically next time.
+- Watch a **live log** and a **progress bar** as tracks download; the UI stays
   responsive because downloads run on a background thread.
 
 Everything runs through the exact same engine as the CLI.
 
 ---
 
-## 🧭 How it works (short version)
+## 🧭 How it Works
 
 ```
-Spotify URL ──▶ metadata (Web API → public fallback)
-            ──▶ for each track:  search Soulseek ──▶ rank & pick best result
-                                 ──▶ download (retry other peers on failure)
-                                 ──▶ tag + embed cover art
-            ──▶ summary: "Downloaded X/Y tracks"
+1. Read the Spotify URL and its metadata (Web API, or public fallback).
+2. For each track:
+   a. Search SoulSeek.
+   b. Rank the results and pick the best one.
+   c. Download it (retrying other peers on failure).
+   d. Write tags and embed the cover art.
+3. Print a summary: "Downloaded X/Y tracks".
 ```
 
-🎚️ With `--extended-mix`, each track first searches for its *(Extended Mix)*;
+With `--extended-mix`, each track first searches for its *(Extended Mix)*;
 if none is found it downloads the standard version and says so in the log.
 
-📚 For the technical details — architecture, matching heuristic, and known
-limitations — see [DOCUMENTATION.md](DOCUMENTATION.md).
+For the technical details (architecture, matching heuristic, and known
+limitations) see [DOCUMENTATION.md](DOCUMENTATION.md).
 
-## 🔨 Building executables
+## 🔨 Building Executables
 
 CI (GitHub Actions, `.github/workflows/build.yml`) builds a single-file
 executable for **Windows, macOS and Linux** on every version tag and on manual
@@ -254,9 +238,7 @@ uv run python scripts/build_executable.py
 # -> dist/SpotiSeek  (or dist/SpotiSeek.exe on Windows)
 ```
 
-Uses [PyInstaller](https://pyinstaller.org/) (`--onefile`). If
-`spotiseek/assets/icon.png` exists it's converted to the platform icon format
-automatically.
+Uses [PyInstaller](https://pyinstaller.org/) (`--onefile`).
 
 ## 🧪 Development
 
