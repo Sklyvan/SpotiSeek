@@ -138,11 +138,6 @@ Files are saved as `<Artist> - <Title>.<ext>` (or `<Artist> - <Title> (Extended 
 when an extended mix was downloaded). If a matching file is already present in
 the output folder, that track is skipped.
 
-### 🔚 Exit code
-
-`download` exits non-zero if there were tracks to fetch but **none** succeeded,
-which makes it easy to use in scripts.
-
 ### 🛟 Lossless Fallback (`--fallback`)
 
 SoulSeek is the primary source. When it can't deliver a track (no results, no
@@ -165,35 +160,21 @@ download. It's **off by default**.
 ```dotenv
 # Set only the providers you have a working proxy for. Examples of the API
 # "shapes" SpotiSeek expects (hostnames change, find a live one yourself):
-SPOTISEEK_TIDAL_API_URL=https://your-hifi-api-instance      # {base}/track/?id=..&quality=LOSSLESS
-SPOTISEEK_QOBUZ_API_URL=https://your-qobuz-rest-instance    # {base}/api/download-music?isrc=..&quality=27
-SPOTISEEK_AMAZON_API_URL=https://your-amazon-proxy          # {base}/track/?id=..
-SPOTISEEK_DEEZER_API_URL=https://your-deezer-proxy          # {base}/track/?id=..
+SPOTISEEK_TIDAL_API_URL=https://your-hifi-api-instance
+SPOTISEEK_QOBUZ_API_URL=https://your-qobuz-rest-instance
+SPOTISEEK_AMAZON_API_URL=https://your-amazon-proxy
+SPOTISEEK_DEEZER_API_URL=https://your-deezer-proxy
 ```
-
-Downloading copyrighted audio from these services may be against their terms and
-your local law, use responsibly.
 
 ---
 
 ## 🖥️ Desktop GUI
 
-Prefer not to use the terminal? Launch the GUI (after installing the `gui` extra):
+Prefer not to use the terminal? Launch the GUI:
 
 ```bash
 uv run spotiseek-gui       # or just: spotiseek-gui
 ```
-
-The window lets you:
-
-- Paste a Spotify URL and hit **Download** (or **Info** to just list the tracks).
-- Set all the options: output folder (with a Browse button), parallel
-  downloads, match strictness, Extended Mix, tagging, min bitrate, dry run, and
-  the lossless **fallback** toggle (proxy URLs still come from `.env`).
-- Enter your **Spotify** and **SoulSeek** credentials and **Save settings to
-  .env**, no manual file editing. They're loaded automatically next time.
-- Watch a **live log** and a **progress bar** as tracks download; the UI stays
-  responsive because downloads run on a background thread.
 
 Everything runs through the exact same engine as the CLI.
 
@@ -210,9 +191,6 @@ Everything runs through the exact same engine as the CLI.
    d. Write tags and embed the cover art.
 3. Print a summary: "Downloaded X/Y tracks".
 ```
-
-With `--extended-mix`, each track first searches for its *(Extended Mix)*;
-if none is found it downloads the standard version and says so in the log.
 
 For the technical details (architecture, matching heuristic, and known
 limitations) see [DOCUMENTATION.md](DOCUMENTATION.md).
