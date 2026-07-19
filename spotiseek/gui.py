@@ -262,10 +262,14 @@ class MainWindow(QMainWindow):
         )
         form.addRow(self.fallback_check)
 
+        save_opts_btn = QPushButton("Save Download Options")
+        save_opts_btn.clicked.connect(self._save_options)
+        form.addRow(save_opts_btn)
+
         layout.addWidget(opts)
 
         # Credentials
-        creds = QGroupBox("Settings")
+        creds = QGroupBox("Credentials")
         cform = QFormLayout(creds)
         self.spotify_id = QLineEdit()
         self.spotify_id.setPlaceholderText("Optional")
@@ -288,8 +292,8 @@ class MainWindow(QMainWindow):
         cform.addRow("Spotify Client Secret:", self.spotify_secret)
         cform.addRow("Soulseek Username:", self.slsk_user)
         cform.addRow("Soulseek Password:", self.slsk_pass)
-        save_btn = QPushButton("Save Settings")
-        save_btn.clicked.connect(self._save_settings)
+        save_btn = QPushButton("Save Credentials")
+        save_btn.clicked.connect(self._save_credentials)
         cform.addRow(save_btn)
         layout.addWidget(creds)
 
@@ -321,12 +325,28 @@ class MainWindow(QMainWindow):
     # -- settings ---------------------------------------------------------- #
     def _load_settings(self) -> None:
         cfg = Config.load()
+        # Credentials
         self.spotify_id.setText(cfg.spotify_client_id or "")
         self.spotify_secret.setText(cfg.spotify_client_secret or "")
         self.slsk_user.setText(cfg.soulseek_username or "")
         self.slsk_pass.setText(cfg.soulseek_password or "")
+        # Download options (persisted by "Save Download Options"); when unset
+        # these resolve to the built-in defaults.
+        self.output_edit.setText(str(cfg.output_dir))
+        self.output_edit.setCursorPosition(0)
+        self.parallel.setValue(cfg.parallel)
+        idx = self.match.findData(cfg.match_strictness.value)
+        if idx >= 0:
+            self.match.setCurrentIndex(idx)
+        self.search_timeout.setValue(cfg.search_timeout)
+        self.min_bitrate.setValue(cfg.min_bitrate or 0)
+        self.tag_check.setChecked(cfg.tag)
+        self.dryrun_check.setChecked(cfg.dry_run)
+        self.extended_check.setChecked(cfg.extended_mix)
+        self.longest_check.setChecked(cfg.prefer_longest)
+        self.fallback_check.setChecked(cfg.fallback)
 
-    def _save_settings(self) -> None:
+    def _save_credentials(self) -> None:
         try:
             save_env(
                 {
@@ -337,10 +357,36 @@ class MainWindow(QMainWindow):
                 }
             )
         except OSError as exc:
-            QMessageBox.critical(self, "SpotiSeek", f"Could not save settings:\n{exc}")
+            QMessageBox.critical(
+                self, "SpotiSeek", f"Could not save credentials:\n{exc}"
+            )
             return
-        self.statusBar().showMessage("Settings Saved")
-        logger.info("Settings saved.")
+        self.statusBar().showMessage("Credentials Saved")
+        logger.info("Credentials saved.")
+
+    def _save_options(self) -> None:
+        try:
+            save_env(
+                {
+                    "SPOTISEEK_OUTPUT_DIR": self.output_edit.text().strip(),
+                    "SPOTISEEK_PARALLEL": str(self.parallel.value()),
+                    "SPOTISEEK_MATCH_STRICTNESS": str(self.match.currentData()),
+                    "SPOTISEEK_SEARCH_TIMEOUT": str(self.search_timeout.value()),
+                    "SPOTISEEK_MIN_BITRATE": str(self.min_bitrate.value()),
+                    "SPOTISEEK_TAG": str(self.tag_check.isChecked()),
+                    "SPOTISEEK_DRY_RUN": str(self.dryrun_check.isChecked()),
+                    "SPOTISEEK_EXTENDED_MIX": str(self.extended_check.isChecked()),
+                    "SPOTISEEK_PREFER_LONGEST": str(self.longest_check.isChecked()),
+                    "SPOTISEEK_FALLBACK": str(self.fallback_check.isChecked()),
+                }
+            )
+        except OSError as exc:
+            QMessageBox.critical(
+                self, "SpotiSeek", f"Could not save download options:\n{exc}"
+            )
+            return
+        self.statusBar().showMessage("Download Options Saved")
+        logger.info("Download options saved.")
 
     # -- config from fields ------------------------------------------------ #
     def _current_config(self) -> Config:

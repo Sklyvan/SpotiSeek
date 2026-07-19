@@ -396,10 +396,15 @@ Architecture:
   record through a `_LogBridge` signal into the on-screen log view, so the GUI
   shows the same messages as the CLI (third-party noise already suppressed by
   `configure_logging`).
-- 💾 **Settings.** Credentials/options are read on startup via `Config.load()`
-  and written back with `save_env()` — users never edit `.env` by hand. A run
-  builds its `Config` straight from the widget values, so unsaved tweaks still
-  apply.
+- 💾 **Settings.** Credentials and download options are read on startup via
+  `Config.load()` and written back with `save_env()` — users never edit `.env`
+  by hand. Two independent buttons persist to the same `.env`: **Save
+  Credentials** writes the Spotify/Soulseek keys, and **Save Download Options**
+  writes the behaviour settings (output folder, parallelism, match strictness,
+  search timeout, min bitrate, and the tag/dry-run/extended-mix/prefer-longest/
+  fallback toggles) as `SPOTISEEK_*` env vars that `Config.load()` reads as the
+  env layer. A run still builds its `Config` straight from the widget values, so
+  unsaved tweaks apply for that run without being persisted.
 
 The GUI adds no logic of its own: metadata resolution, matching, downloading and
 tagging are all the same functions the CLI uses.

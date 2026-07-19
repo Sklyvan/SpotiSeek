@@ -59,6 +59,35 @@ def _env(name: str) -> str | None:
     return value.strip() if value else None
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = _env(name)
+    try:
+        return int(raw) if raw is not None else default
+    except ValueError:
+        return default
+
+
+def _env_int_or_none(name: str) -> int | None:
+    """Parse an int env var; a missing value or ``0`` means "unset" (None)."""
+    value = _env_int(name, 0)
+    return value or None
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = _env(name)
+    try:
+        return float(raw) if raw is not None else default
+    except ValueError:
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = _env(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def save_env(
     values: dict[str, str],
     env_file: str | os.PathLike[str] = DEFAULT_ENV_FILE,
@@ -152,6 +181,18 @@ class Config:
         # environment, which keeps real env vars authoritative over the file.
         load_dotenv(dotenv_path=env_file, override=False)
 
+        # Download options persisted to .env (e.g. by the GUI's "Save Download
+        # Options") form the env layer, sitting below explicit CLI overrides and
+        # above the built-in defaults.
+        env_output_dir = _env("SPOTISEEK_OUTPUT_DIR")
+        env_match = _env("SPOTISEEK_MATCH_STRICTNESS")
+        try:
+            env_strictness = (
+                MatchStrictness(env_match) if env_match else MatchStrictness.BALANCED
+            )
+        except ValueError:
+            env_strictness = MatchStrictness.BALANCED
+
         cfg = cls(
             spotify_client_id=_env("SPOTIFY_CLIENT_ID"),
             spotify_client_secret=_env("SPOTIFY_CLIENT_SECRET"),
@@ -161,6 +202,16 @@ class Config:
             soulseek_password=(
                 soulseek_password or _env("SOULSEEK_PASSWORD") or ""
             ),
+            output_dir=Path(env_output_dir) if env_output_dir else default_download_dir(),
+            parallel=_env_int("SPOTISEEK_PARALLEL", 3),
+            match_strictness=env_strictness,
+            search_timeout=_env_float("SPOTISEEK_SEARCH_TIMEOUT", DEFAULT_SEARCH_TIMEOUT),
+            min_bitrate=_env_int_or_none("SPOTISEEK_MIN_BITRATE"),
+            tag=_env_bool("SPOTISEEK_TAG", True),
+            dry_run=_env_bool("SPOTISEEK_DRY_RUN", False),
+            extended_mix=_env_bool("SPOTISEEK_EXTENDED_MIX", False),
+            prefer_longest=_env_bool("SPOTISEEK_PREFER_LONGEST", False),
+            fallback=_env_bool("SPOTISEEK_FALLBACK", False),
             tidal_api_url=_env("SPOTISEEK_TIDAL_API_URL") or DEFAULT_TIDAL_API_URL,
             qobuz_api_url=_env("SPOTISEEK_QOBUZ_API_URL") or DEFAULT_QOBUZ_API_URL,
             amazon_api_url=_env("SPOTISEEK_AMAZON_API_URL") or DEFAULT_AMAZON_API_URL,
