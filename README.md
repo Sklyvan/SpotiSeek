@@ -1,6 +1,6 @@
 # 🎵 SpotiSeek
 
-Reads a Spotify URL, pulls the track metadata, then downloads track from SoulSeek.<br>
+Reads a Spotify URL, pulls the track metadata, then downloads the track from SoulSeek.<br>
 It ships with both a command-line tool and a desktop GUI.
 
 > [!WARNING]
@@ -215,3 +215,9 @@ uv sync                                      # installs the dev group by default
 uv run pytest tests/unit                     # fast, offline
 uv run pytest --run-integration              # also hits the live network
 ```
+
+---
+
+## 📄 License
+
+Released under the [MIT License](LICENSE).
