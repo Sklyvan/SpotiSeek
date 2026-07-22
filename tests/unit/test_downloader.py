@@ -45,7 +45,7 @@ class FakeClient:
             return list(type(self).ext_results)
         return list(type(self).results)
 
-    async def download(self, candidate, download_timeout):
+    async def download(self, candidate, download_timeout, **kwargs):
         type(self).download_calls += 1
         if candidate.username in type(self).fail_users:
             raise DownloadError(f"simulated failure for {candidate.username}")

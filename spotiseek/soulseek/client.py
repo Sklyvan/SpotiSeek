@@ -173,10 +173,29 @@ class SoulseekClient:
                 candidates.append(_file_to_candidate(result, file))
         return candidates
 
-    async def download(self, candidate: Candidate, download_timeout: float) -> str:
+    async def download(
+        self,
+        candidate: Candidate,
+        download_timeout: float,
+        queue_timeout: float = 60.0,
+        stall_timeout: float = 60.0,
+    ) -> str:
         """Download a candidate and return the absolute local path on success.
 
-        Raises :class:`DownloadError` on failure, abort or timeout.
+        Three independent guards decide when to give up, so a single bad peer
+        never pins a worker for the full ``download_timeout``:
+
+        * ``queue_timeout`` — the most it may sit in a pre-transfer state
+          (queued / initializing) with **no** bytes flowing. Peers routinely
+          accept the request but never free an upload slot; without this guard
+          such a transfer idles for the entire ``download_timeout`` (the common
+          "stuck" case). ``0``/negative disables it.
+        * ``stall_timeout`` — once bytes are flowing, the most it may go with no
+          further progress before the transfer is treated as stalled.
+          ``0``/negative disables it.
+        * ``download_timeout`` — an absolute cap on the whole transfer.
+
+        Raises :class:`DownloadError` on failure, abort, stall or timeout.
         """
         logger.debug(
             "Requesting download of %r from %s", candidate.basename, candidate.username
@@ -186,7 +205,11 @@ class SoulseekClient:
         )
 
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + download_timeout
+        start = loop.time()
+        deadline = start + download_timeout
+        last_bytes = 0
+        last_progress = start
+        started = False  # flips True the moment the transfer actually moves bytes
         while True:
             state = transfer.state.VALUE
             if state in _TERMINAL_OK:
@@ -201,11 +224,32 @@ class SoulseekClient:
                     or state.name.lower()
                 )
                 raise DownloadError(f"Transfer {state.name.lower()}: {reason}")
-            if loop.time() > deadline:
+
+            now = loop.time()
+            transferred = transfer.bytes_transfered or 0
+            if transferred > last_bytes:
+                last_bytes = transferred
+                last_progress = now
+                started = True
+
+            if now > deadline:
                 await self._safe_abort(transfer)
                 raise DownloadError(
                     f"Download timed out after {download_timeout:.0f}s "
                     f"(state={state.name.lower()})."
+                )
+            if not started:
+                if queue_timeout > 0 and now - start > queue_timeout:
+                    await self._safe_abort(transfer)
+                    raise DownloadError(
+                        f"No upload slot after {queue_timeout:.0f}s "
+                        f"(state={state.name.lower()}); peer never started sending."
+                    )
+            elif stall_timeout > 0 and now - last_progress > stall_timeout:
+                await self._safe_abort(transfer)
+                raise DownloadError(
+                    f"Transfer stalled: no progress for {stall_timeout:.0f}s "
+                    f"(state={state.name.lower()}, {last_bytes} byte(s) received)."
                 )
             await asyncio.sleep(0.5)
 

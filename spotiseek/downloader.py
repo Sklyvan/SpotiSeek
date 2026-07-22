@@ -31,8 +31,17 @@ logger = logging.getLogger(__name__)
 
 #: How many ranked candidates to try before giving up on a track.
 MAX_DOWNLOAD_ATTEMPTS = 5
-#: Per-file transfer timeout (seconds).
+#: Absolute per-file transfer timeout (seconds), once a download is moving.
 DOWNLOAD_TIMEOUT = 300.0
+#: Max seconds to wait for a peer to grant an upload slot (i.e. start sending)
+#: before abandoning that candidate. Peers frequently accept a transfer request,
+#: park it in their queue, and never free a slot; without this cap such a
+#: transfer would idle for the full DOWNLOAD_TIMEOUT — the main "gets stuck"
+#: symptom — pinning one of the --parallel workers for minutes.
+QUEUE_TIMEOUT = 60.0
+#: Max seconds with no byte progress, once transferring, before a download is
+#: treated as stalled and the next candidate is tried.
+STALL_TIMEOUT = 60.0
 _INCOMING_DIRNAME = ".incoming"
 #: Soulseek outcomes that warrant trying the lossless fallback source.
 _FALLBACK_STATUSES = frozenset(
@@ -426,7 +435,12 @@ class Downloader:
                 attempt,
             )
             try:
-                local_path = await client.download(candidate, DOWNLOAD_TIMEOUT)
+                local_path = await client.download(
+                    candidate,
+                    DOWNLOAD_TIMEOUT,
+                    queue_timeout=QUEUE_TIMEOUT,
+                    stall_timeout=STALL_TIMEOUT,
+                )
             except DownloadError as exc:
                 last_error = str(exc)
                 logger.warning("%s — attempt %d failed: %s", prefix, attempt, exc)

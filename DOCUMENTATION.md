@@ -139,10 +139,20 @@ directory before being moved to their final name.
   (`BITRATE=0, DURATION=1, VBR=2, SAMPLE_RATE=4, BIT_DEPTH=5`) and mapped
   defensively — peers vary in what they report.
 
-- ⬇️ **`download(candidate, timeout)`** requests the transfer and polls it to a
-  terminal state (`COMPLETE` / `FAILED` / `ABORTED` / `INCOMPLETE`). On success
-  it returns the absolute local path; on failure or timeout it raises
-  `DownloadError` (and aborts a timed-out transfer).
+- ⬇️ **`download(candidate, timeout, queue_timeout, stall_timeout)`** requests
+  the transfer and polls it to a terminal state (`COMPLETE` / `FAILED` /
+  `ABORTED` / `INCOMPLETE`). On success it returns the absolute local path; on
+  failure it raises `DownloadError` (and aborts the transfer). Three independent
+  guards decide when to give up so a single bad peer never pins a `--parallel`
+  worker for the full transfer timeout:
+  - **`queue_timeout`** (60 s) — a peer routinely *accepts* the request but parks
+    it in its queue and never frees an upload slot. Without this guard such a
+    transfer sits idle (zero bytes) for the whole `timeout` — the classic
+    "download gets stuck" symptom. If no byte has moved within `queue_timeout`,
+    the candidate is abandoned and the next-best one is tried.
+  - **`stall_timeout`** (60 s) — once bytes are flowing, the transfer is dropped
+    if progress freezes for this long.
+  - **`timeout`** (300 s) — absolute cap on the whole transfer.
 
 🔇 The Soulseek network constantly produces failed peer connections (users
 behind NAT, offline, etc.). This is normal churn, so `logging_setup.py` silences
@@ -472,8 +482,11 @@ CI lives in `.github/workflows/build.yml`:
   The official API paginates completely — prefer it for big playlists once your
   account is unrestricted. Single-track embeds also don't expose the album name.
 - 📡 **Soulseek availability is peer-dependent.** A track may simply not be
-  shared, or the only peers may be offline/queued/slow. SpotiSeek retries other
-  peers and then skips, but it cannot download what nobody is sharing.
+  shared, or the only peers may be offline/queued/slow. A peer that queues the
+  request but never frees an upload slot is dropped after `queue_timeout` (60 s)
+  rather than blocking a worker for the full transfer timeout; SpotiSeek then
+  retries other peers and skips if none deliver. It cannot download what nobody
+  is sharing.
 - 🎯 **Match accuracy isn't perfect.** Filenames on Soulseek are inconsistent and
   many peers don't report duration. `balanced` aims for a good precision/recall
   trade-off; use `strict` to avoid wrong versions (at the cost of more misses)
